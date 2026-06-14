@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// ComponentStatusRequest: workstation -> sensor. Polls a sensor for its
+// current ComponentStatus, optionally filtered to a single component id.
+
+#ifndef RADARSYSTEM_COMPONENTSTATUSREQUEST_IDL
+#define RADARSYSTEM_COMPONENTSTATUSREQUEST_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  @topic
+  struct ComponentStatusRequest {
+    SensorId target_sensor_id;
+    @key RequestId request_id;
+    ComponentId component_id_filter;   // empty == all components on the target
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_COMPONENTSTATUSREQUEST_IDL

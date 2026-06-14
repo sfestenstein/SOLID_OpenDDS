@@ -1,0 +1,206 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// GENERATED FILE — do not edit by hand.
+// Source template: pub_sub_open_dds/cmake/templates/PubSub_adapter.cpp.in
+// Generated for IDL type: @PSO_GEN_FQN@
+//
+// This is the only translation unit outside the pub_sub_open_dds facade
+// that includes the OpenDDS-generated `@PSO_GEN_TYPESUPPORT_HDR@`. It
+// implements pub_sub_open_dds::detail::TypeAdapter for `@PSO_GEN_FQN@`
+// (including the OpenDDS-specific hooks the OpenDddsRuntime calls back
+// into) and registers itself with the global type-adapter registry via a
+// process-static initialiser.
+//
+// Behaviour mirrors what the previous hand-written DdsTraits<T> path used
+// to express:
+//   * register_with_opendds  -> <TypeSupportImpl>::register_type
+//   * make_opendds_writer    -> publisher->create_datawriter +
+//                                <DataWriter>::_narrow + write thunk
+//   * make_opendds_reader    -> subscriber->create_datareader +
+//                                OpenDddsListener<T,...> + binding install
+//   * clone (for InMemoryRuntime) -> std::make_shared<T>(*sample)
+
+#include "@PSO_GEN_TYPESUPPORT_HDR@"
+
+#include "pub_sub_open_dds/detail/data_adapter.h"
+#include "pub_sub_open_dds/detail/opendds_bindings.h"
+#include "pub_sub_open_dds/detail/registry.h"
+#include "pub_sub_open_dds/detail/typed_binding.h"
+#include "pub_sub_open_dds/error.h"
+#include "pub_sub_open_dds/qos.h"
+
+#include <dds/DCPS/Marked_Default_Qos.h>
+#include <dds/DdsDcpsDomainC.h>
+#include <dds/DdsDcpsPublicationC.h>
+#include <dds/DdsDcpsSubscriptionC.h>
+
+#include <functional>
+#include <memory>
+#include <string>
+#include <typeindex>
+
+namespace {
+
+using UserType = @PSO_GEN_FQN@;
+
+class Adapter final : public pub_sub_open_dds::detail::TypeAdapter {
+public:
+  std::type_index type_index() const override {
+    return std::type_index(typeid(UserType));
+  }
+
+  // Cached at first use; OpenDDS gives us the canonical type name from
+  // the TypeSupport instance.
+  const char* type_name() const override {
+    if (!cached_type_name_) {
+      @PSO_GEN_NAMESPACE@::@PSO_GEN_TS_CLASS@_var ts(
+          new @PSO_GEN_NAMESPACE@::@PSO_GEN_TS_IMPL_CLASS@);
+      CORBA::String_var name = ts->get_type_name();
+      cached_type_name_      = std::make_shared<std::string>(name.in());
+    }
+    return cached_type_name_->c_str();
+  }
+
+  std::shared_ptr<void> clone(const void* sample) const override {
+    return std::shared_ptr<void>(
+        new UserType(*static_cast<const UserType*>(sample)),
+        [](void* p) { delete static_cast<UserType*>(p); });
+  }
+
+  void register_with_opendds(void* participant_v) const override {
+    auto* participant = static_cast<DDS::DomainParticipant_ptr>(participant_v);
+    @PSO_GEN_NAMESPACE@::@PSO_GEN_TS_CLASS@_var ts(
+        new @PSO_GEN_NAMESPACE@::@PSO_GEN_TS_IMPL_CLASS@);
+    if (ts->register_type(participant, "") != DDS::RETCODE_OK) {
+      throw pub_sub_open_dds::Error(
+          std::string("register_type failed for '") + type_name() + "'");
+    }
+  }
+
+  std::shared_ptr<pub_sub_open_dds::detail::TypedWriterBinding>
+  make_opendds_writer(void* publisher_v, void* topic_v,
+                       const pub_sub_open_dds::WriterQos& qos) const override {
+    auto* publisher = static_cast<DDS::Publisher_ptr>(publisher_v);
+    auto* topic     = static_cast<DDS::Topic_ptr>(topic_v);
+
+    DDS::DataWriterQos dwqos;
+    if (const void* raw = qos.raw()) {
+      // TopicConfig handed us a fully-resolved DDS::DataWriterQos (DDS-XML
+      // path). Use it verbatim — the round-trip through QosProfile would
+      // drop fields the QosProfile doesn't model (deadline, liveliness,
+      // resource_limits, partition, ...).
+      dwqos = *static_cast<const DDS::DataWriterQos*>(raw);
+    } else {
+      publisher->get_default_datawriter_qos(dwqos);
+      pub_sub_open_dds::detail::apply_writer_qos(qos.profile(), dwqos);
+    }
+
+    DDS::DataWriter_var writer = publisher->create_datawriter(
+        topic, dwqos, nullptr, OpenDDS::DCPS::DEFAULT_STATUS_MASK);
+    if (!writer) {
+      throw pub_sub_open_dds::Error(
+          std::string("create_datawriter failed for '") + type_name() + "'");
+    }
+
+    @PSO_GEN_NAMESPACE@::@PSO_GEN_DW_CLASS@_var typed =
+        @PSO_GEN_NAMESPACE@::@PSO_GEN_DW_CLASS@::_narrow(writer);
+    if (!typed) {
+      throw pub_sub_open_dds::Error(
+          std::string("DataWriter narrow failed for '") + type_name() + "'");
+    }
+
+    // Keep the typed-narrowed writer alive for the binding's lifetime via
+    // a shared_ptr<void>; the binding holds onto it opaquely.
+    auto typed_keepalive = std::shared_ptr<void>(
+        // Steal a CORBA reference into a shared_ptr; deleter releases it.
+        @PSO_GEN_NAMESPACE@::@PSO_GEN_DW_CLASS@::_duplicate(typed.in()),
+        [](void* p) {
+          auto raw = static_cast<@PSO_GEN_NAMESPACE@::@PSO_GEN_DW_CLASS@_ptr>(p);
+          CORBA::release(raw);
+        });
+
+    // The write thunk: cast the void* back to const UserType*, hand to
+    // the typed writer, translate the return code into WriteResult.
+    auto typed_raw = typed.in();
+    auto write_fn = [typed_raw](const void* sample) {
+      const UserType& s = *static_cast<const UserType*>(sample);
+      return pub_sub_open_dds::detail::translate_return_code(
+          typed_raw->write(s, DDS::HANDLE_NIL));
+    };
+
+    return std::make_shared<pub_sub_open_dds::detail::OpenDddsWriterBinding>(
+        writer, std::move(typed_keepalive), std::move(write_fn));
+  }
+
+  std::shared_ptr<pub_sub_open_dds::detail::TypedReaderBinding>
+  make_opendds_reader(
+      void* subscriber_v, void* topic_v,
+      const pub_sub_open_dds::ReaderQos& qos,
+      std::function<void(const void*)> /*on_sample (set later)*/) const override {
+    auto* subscriber = static_cast<DDS::Subscriber_ptr>(subscriber_v);
+    auto* topic      = static_cast<DDS::Topic_ptr>(topic_v);
+
+    // Build the binding first so the listener can hold a weak_ptr to it.
+    auto binding =
+        std::make_shared<pub_sub_open_dds::detail::OpenDddsReaderBinding>();
+
+    DDS::DataReaderListener_var listener(
+        new pub_sub_open_dds::detail::OpenDddsListener<
+            UserType, @PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@>(
+            std::weak_ptr<pub_sub_open_dds::detail::OpenDddsReaderBinding>(binding)));
+
+    DDS::DataReaderQos drqos;
+    if (const void* raw = qos.raw()) {
+      // TopicConfig handed us a fully-resolved DDS::DataReaderQos (DDS-XML
+      // path). Use it verbatim — same rationale as the writer path above.
+      drqos = *static_cast<const DDS::DataReaderQos*>(raw);
+    } else {
+      subscriber->get_default_datareader_qos(drqos);
+      pub_sub_open_dds::detail::apply_reader_qos(qos.profile(), drqos);
+    }
+
+    DDS::DataReader_var reader = subscriber->create_datareader(
+        topic, drqos, listener, OpenDDS::DCPS::DEFAULT_STATUS_MASK);
+    if (!reader) {
+      throw pub_sub_open_dds::Error(
+          std::string("create_datareader failed for '") + type_name() + "'");
+    }
+
+    @PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@_var typed =
+        @PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@::_narrow(reader);
+    if (!typed) {
+      throw pub_sub_open_dds::Error(
+          std::string("DataReader narrow failed for '") + type_name() + "'");
+    }
+    auto typed_keepalive = std::shared_ptr<void>(
+        @PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@::_duplicate(typed.in()),
+        [](void* p) {
+          auto raw = static_cast<@PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@_ptr>(p);
+          CORBA::release(raw);
+        });
+
+    binding->install(reader, listener, std::move(typed_keepalive));
+    return binding;
+  }
+
+private:
+  mutable std::shared_ptr<std::string> cached_type_name_;
+};
+
+// Process-static registration. Linking this .cpp into the consumer's
+// target ensures `pub_sub_open_dds::Service::register_publisher<UserType>`
+// can find the adapter at runtime.
+const Adapter& adapter_instance() {
+  static const Adapter a;
+  return a;
+}
+
+struct Registrar {
+  Registrar() {
+    pub_sub_open_dds::detail::register_type_adapter(adapter_instance());
+  }
+};
+
+const Registrar @PSO_GEN_REG_IDENT@;
+
+} // namespace

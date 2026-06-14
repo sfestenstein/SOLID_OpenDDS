@@ -1,0 +1,33 @@
+{
+  "name": "OpenDDS MVP",
+  "build": {
+    "context": "..",
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "dev",
+  "workspaceFolder": "/workspaces/DreadWithOpenDDS",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/DreadWithOpenDDS,type=bind,consistency=cached",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "llvm-vs-code-extensions.vscode-clangd"
+      ],
+      "settings": {
+        "cmake.configureArgs": [
+          "-DCMAKE_PREFIX_PATH=/opt/OpenDDS"
+        ],
+        "C_Cpp.default.includePath": [
+          "${workspaceFolder}/**",
+          "/opt/OpenDDS",
+          "/opt/OpenDDS/ACE_wrappers",
+          "/opt/OpenDDS/ACE_wrappers/TAO"
+        ],
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "postCreateCommand": "echo 'source /opt/OpenDDS/setenv.sh' >> ~/.bashrc"
+}

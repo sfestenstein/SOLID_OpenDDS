@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// TrackingCue: workstation -> sensor. "Look here" hint pointing the radar at
+// a specific bearing/elevation/range. A future iteration can enable
+// EXCLUSIVE_OWNERSHIP so that, with multiple workstations issuing cues, only
+// the highest-strength operator's cue is honoured.
+
+#ifndef RADARSYSTEM_TRACKINGCUE_IDL
+#define RADARSYSTEM_TRACKINGCUE_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  @topic
+  struct TrackingCue {
+    SensorId target_sensor_id;       // empty == any sensor
+    @key OperatorId issued_by;
+    double bearing_deg;
+    double elevation_deg;
+    double range_m;
+    unsigned long ownership_strength; // tie-breaker for future exclusive ownership
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_TRACKINGCUE_IDL

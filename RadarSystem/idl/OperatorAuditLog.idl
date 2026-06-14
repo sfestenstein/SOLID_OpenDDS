@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// OperatorAuditLog: workstation -> bus. One entry per significant operator
+// action (Command issued, config change, alarm ack). Designed to be paired
+// with the `event_bus` QoS profile (RELIABLE + KEEP_ALL) so no entry is
+// silently dropped while a subscriber is connected.
+
+#ifndef RADARSYSTEM_OPERATORAUDITLOG_IDL
+#define RADARSYSTEM_OPERATORAUDITLOG_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  enum AuditAction {
+    AUDIT_COMMAND_ISSUED,
+    AUDIT_ALARM_ACKNOWLEDGED,
+    AUDIT_CONFIG_CHANGE,
+    AUDIT_LOGIN,
+    AUDIT_LOGOUT
+  };
+
+  @topic
+  struct OperatorAuditLog {
+    @key OperatorId operator_id;
+    AuditAction action;
+    string detail;                // free-form, e.g. "command #42 START_SCAN"
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_OPERATORAUDITLOG_IDL

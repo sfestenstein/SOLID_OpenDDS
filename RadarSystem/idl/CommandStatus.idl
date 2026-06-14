@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// CommandStatus: sensor -> workstation. Reply to a workstation-issued
+// Command, correlated via command_id.
+
+#ifndef RADARSYSTEM_COMMANDSTATUS_IDL
+#define RADARSYSTEM_COMMANDSTATUS_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  enum CommandResult {
+    CMD_ACCEPTED,
+    CMD_REJECTED,
+    CMD_COMPLETED,
+    CMD_FAILED
+  };
+
+  @topic
+  struct CommandStatus {
+    SensorId sensor_id;
+    @key CommandId command_id;
+    CommandResult result;
+    string message;
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_COMMANDSTATUS_IDL

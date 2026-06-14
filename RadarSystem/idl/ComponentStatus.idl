@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// ComponentStatus: sensor -> workstation. Reports the state of one component
+// of a sensor, sent periodically as a heartbeat or on demand in response to
+// a ComponentStatusRequest.
+
+#ifndef RADARSYSTEM_COMPONENTSTATUS_IDL
+#define RADARSYSTEM_COMPONENTSTATUS_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  enum ComponentState {
+    COMPONENT_OFFLINE,
+    COMPONENT_INITIALIZING,
+    COMPONENT_ONLINE,
+    COMPONENT_DEGRADED,
+    COMPONENT_FAULT
+  };
+
+  @topic
+  struct ComponentStatus {
+    SensorId sensor_id;
+    @key ComponentId component_id;
+    ComponentState state;
+    string message;
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_COMPONENTSTATUS_IDL

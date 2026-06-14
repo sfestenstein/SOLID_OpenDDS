@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// RawIQSample: sensor -> workstation. High-rate raw signal payload. Sized
+// here as a small fixed array purely for the demo; a real sensor would
+// stream much larger blobs. Paired with the `streaming` QoS profile
+// (BEST_EFFORT + KEEP_LAST 1) so drops under load are expected and the
+// newest sample wins.
+
+#ifndef RADARSYSTEM_RAWIQSAMPLE_IDL
+#define RADARSYSTEM_RAWIQSAMPLE_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  // Bounded sequences become std::vector<float> under the C++11 mapping,
+  // with the upper bound enforced at marshalling time. A real sensor would
+  // stream a larger payload here; 16 floats is enough to demonstrate the
+  // streaming QoS without bloating the demo's bandwidth.
+  typedef sequence<float, 16> IQVector;
+
+  @topic
+  struct RawIQSample {
+    SensorId sensor_id;
+    @key unsigned long beam_id;
+    unsigned long long seq_no;        // monotonic per (sensor_id, beam_id)
+    double center_freq_hz;
+    IQVector i_samples;
+    IQVector q_samples;
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_RAWIQSAMPLE_IDL

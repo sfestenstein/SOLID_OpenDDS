@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// SystemAlarm: sensor -> workstation. High-priority condition the operator
+// needs to see immediately and keep visible until it's acknowledged.
+// Keyed on alarm_id so the `latched` QoS profile keeps the latest state of
+// each distinct alarm available to late-joining workstations.
+
+#ifndef RADARSYSTEM_SYSTEMALARM_IDL
+#define RADARSYSTEM_SYSTEMALARM_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  enum AlarmSeverity {
+    ALARM_INFO,
+    ALARM_WARNING,
+    ALARM_ERROR,
+    ALARM_CRITICAL
+  };
+
+  @topic
+  struct SystemAlarm {
+    SensorId sensor_id;
+    @key AlarmId alarm_id;
+    AlarmSeverity severity;
+    string source_component;
+    string description;
+    OperatorId acknowledged_by;   // empty when unacknowledged
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_SYSTEMALARM_IDL

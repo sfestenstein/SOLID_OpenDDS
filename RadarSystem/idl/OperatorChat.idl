@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// OperatorChat: workstation <-> workstation. Lightweight text channel so
+// multiple operators can coordinate. Keyed on operator_id only as a hint;
+// historical context is preserved by the `reliable` profile's KEEP_LAST
+// history depth (10 by default — the demo deepens it via a custom profile
+// at registration time if needed).
+
+#ifndef RADARSYSTEM_OPERATORCHAT_IDL
+#define RADARSYSTEM_OPERATORCHAT_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  @topic
+  struct OperatorChat {
+    @key OperatorId operator_id;
+    unsigned long seq_no;
+    string text;
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_OPERATORCHAT_IDL

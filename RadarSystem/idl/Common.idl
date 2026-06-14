@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Shared primitive aliases used by every RadarSystem message. Defined once
+// here so the per-message IDL files (and any future ones) refer to a single
+// authoritative type for each field.
+//
+// There are no @topic structs in this file, so opendds_idl does not generate
+// any TypeSupport for it. The C++11 mapping turns each typedef into a
+// `using` alias, so callers still pass plain std::string / uint32_t / etc.
+
+#ifndef RADARSYSTEM_COMMON_IDL
+#define RADARSYSTEM_COMMON_IDL
+
+module RadarSystem {
+
+  // Identifies the sensor that originated (or is the target of) a message.
+  typedef string SensorId;
+
+  // Identifies a single physical/logical component within a sensor.
+  typedef string ComponentId;
+
+  // Wall-clock timestamp in nanoseconds since the Unix epoch.
+  typedef unsigned long long TimestampNs;
+
+  // Monotonically increasing per-workstation command identifier.
+  typedef unsigned long CommandId;
+
+  // Monotonically increasing per-workstation request identifier.
+  typedef unsigned long RequestId;
+
+  // Sensor-local track identifier.
+  typedef unsigned long TrackId;
+
+  // Free-form operator/workstation identity (set by the workstation app).
+  typedef string OperatorId;
+
+  // Sensor-local alarm identifier; used as @key on SystemAlarm so each
+  // distinct alarm is its own DDS instance (and a latched profile keeps the
+  // most recent state of each alarm available to late joiners).
+  typedef unsigned long AlarmId;
+
+};
+
+#endif // RADARSYSTEM_COMMON_IDL

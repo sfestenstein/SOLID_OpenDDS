@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// RadarTrack: sensor -> workstation. Single live radar contact, keyed by
+// sensor-local track id.
+
+#ifndef RADARSYSTEM_RADARTRACK_IDL
+#define RADARSYSTEM_RADARTRACK_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  @topic
+  struct RadarTrack {
+    SensorId sensor_id;
+    @key TrackId track_id;
+    double range_m;
+    double bearing_deg;
+    double elevation_deg;
+    double speed_mps;
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_RADARTRACK_IDL

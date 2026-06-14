@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RadarSystem DDS-XML QoS profiles.
+
+  This file is parsed by OpenDDS's QOS_XML_Loader (via
+  pub_sub_open_dds::QosXmlLoader). Reference a profile from a topic config
+  with the `xml:<profile_name>` syntax, e.g.
+
+      RadarTrack = xml:RadarTrack_Streaming
+
+  The schema is the OMG DDS-XML one (`dds_qos.xsd`); see
+  /opt/OpenDDS/tests/DCPS/QoS_XML/dump/qos.xml for a fully populated example.
+
+  Only the bits that differ from the OpenDDS defaults are spelled out below;
+  everything we don't mention stays at the participant's default value.
+
+  The profiles defined here intentionally mirror two of the radar demo's
+  bindings (RadarTrack -> streaming, ComponentStatus -> reliable+transient)
+  so we can prove the XML path produces identical behaviour to the
+  programmatic profiles.
+-->
+<dds xmlns="http://www.omg.org/dds"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.omg.org/dds dds_qos.xsd">
+
+  <!-- High-rate live data (RadarTrack, RawIQSample): drop under load OK,
+       always show the latest sample. -->
+  <qos_profile name="RadarTrackStreaming">
+    <datawriter_qos>
+      <reliability>
+        <kind>BEST_EFFORT_RELIABILITY_QOS</kind>
+      </reliability>
+      <durability>
+        <kind>VOLATILE_DURABILITY_QOS</kind>
+      </durability>
+      <history>
+        <kind>KEEP_LAST_HISTORY_QOS</kind>
+        <depth>1</depth>
+      </history>
+    </datawriter_qos>
+    <datareader_qos>
+      <reliability>
+        <kind>BEST_EFFORT_RELIABILITY_QOS</kind>
+      </reliability>
+      <durability>
+        <kind>VOLATILE_DURABILITY_QOS</kind>
+      </durability>
+      <history>
+        <kind>KEEP_LAST_HISTORY_QOS</kind>
+        <depth>1</depth>
+      </history>
+    </datareader_qos>
+  </qos_profile>
+
+  <!-- Latched component state: a late-joining workstation immediately gets
+       the most recent ComponentStatus per (sensor_id, component_id) key. -->
+  <qos_profile name="ComponentStatusDurable">
+    <datawriter_qos>
+      <reliability>
+        <kind>RELIABLE_RELIABILITY_QOS</kind>
+      </reliability>
+      <durability>
+        <kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>
+      </durability>
+      <history>
+        <kind>KEEP_LAST_HISTORY_QOS</kind>
+        <depth>10</depth>
+      </history>
+    </datawriter_qos>
+    <datareader_qos>
+      <reliability>
+        <kind>RELIABLE_RELIABILITY_QOS</kind>
+      </reliability>
+      <durability>
+        <kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>
+      </durability>
+      <history>
+        <kind>KEEP_LAST_HISTORY_QOS</kind>
+        <depth>10</depth>
+      </history>
+    </datareader_qos>
+  </qos_profile>
+
+</dds>

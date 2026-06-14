@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Command: workstation -> sensor. Operator action targeted at a specific
+// sensor (empty target_sensor_id == broadcast).
+
+#ifndef RADARSYSTEM_COMMAND_IDL
+#define RADARSYSTEM_COMMAND_IDL
+
+#include "Common.idl"
+
+module RadarSystem {
+
+  enum CommandType {
+    CMD_START_SCAN,
+    CMD_STOP_SCAN,
+    CMD_SHUTDOWN,
+    CMD_RESET,
+    CMD_SET_SCAN_RATE
+  };
+
+  @topic
+  struct Command {
+    SensorId target_sensor_id;
+    @key CommandId command_id;
+    CommandType type;
+    string parameters;
+    TimestampNs timestamp_ns;
+  };
+
+};
+
+#endif // RADARSYSTEM_COMMAND_IDL
