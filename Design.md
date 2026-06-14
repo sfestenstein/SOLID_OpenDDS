@@ -1,4 +1,4 @@
-**OpenDDS Dread Project**
+**SOLD OpenDDS Project**
 
 *Purpose*
 The purpose of this project is to evolve into a c++ library complete with test suits, unit tests only where practical, and high quality Documentation for users.  OpenDDS is a notoriously large dependency which should be insulated from the user!

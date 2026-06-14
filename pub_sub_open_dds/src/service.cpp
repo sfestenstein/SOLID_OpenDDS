@@ -2,6 +2,7 @@
 #include "pub_sub_open_dds/service.h"
 
 #include "pub_sub_open_dds/runtime.h"
+#include "pub_sub_open_dds/topic_config.h"
 
 #include <sstream>
 #include <stdexcept>
@@ -44,6 +45,14 @@ void Service::pre_activate(const ServiceConfig& cfg) {
   state_ = LifecycleState::PreActivated;
 }
 
+void Service::pre_activate(const ServiceConfig& cfg, TopicConfig topic_config) {
+  require_state(LifecycleState::Created, "pre_activate");
+  config_ = cfg;
+  topic_config_.reset(new TopicConfig(std::move(topic_config)));
+  runtime_->init(config_);
+  state_ = LifecycleState::PreActivated;
+}
+
 void Service::activate() {
   require_state(LifecycleState::PreActivated, "activate");
   runtime_->activate();
@@ -56,11 +65,114 @@ void Service::activate() {
 }
 
 void Service::post_activate() {
+  if (state_ == LifecycleState::PreActivated) {
+    activate();
+  }
   require_state(LifecycleState::Activated, "post_activate");
   // No built-in work; this is the documented user hook for "service is
   // fully up" tasks (initial publishes, registering with other subsystems,
   // etc.).
   state_ = LifecycleState::PostActivated;
+}
+
+void Service::require_declared_topic(const std::string& topic_name,
+                                     const char*        op) const {
+  if (!topic_config_) {
+    return;
+  }
+  if (!topic_config_->has_binding(topic_name)) {
+    throw std::runtime_error(std::string("pub_sub_open_dds::Service: cannot ")
+                             + op + " undeclared topic '" + topic_name + "'");
+  }
+}
+
+void Service::remember_topic_type(const std::string& topic_name,
+                                  std::type_index     idx,
+                                  const char*         type_name_for_diag) {
+  std::unordered_map<std::string, std::type_index>::const_iterator it =
+      topic_types_.find(topic_name);
+  if (it == topic_types_.end()) {
+    topic_types_.insert(std::make_pair(topic_name, idx));
+    return;
+  }
+  if (it->second != idx) {
+    throw std::runtime_error(std::string("pub_sub_open_dds::Service: topic '")
+                             + topic_name + "' already declared with a different type; "
+                             "cannot use type '" + type_name_for_diag + "'");
+  }
+}
+
+const detail::TypeAdapter& Service::require_type_adapter(
+    std::type_index idx,
+    const char*     type_name_for_diag) const {
+  const detail::TypeAdapter* adapter = detail::find_type_adapter(idx);
+  if (!adapter) {
+    throw std::runtime_error(std::string("no TypeAdapter registered for '")
+                             + type_name_for_diag
+                             + "' — did you forget pub_sub_open_dds_generate_bindings(" 
+                               "... TYPES <T>)?");
+  }
+  return *adapter;
+}
+
+void Service::subscribe_erased(const std::string&              topic_name,
+                               std::type_index                  idx,
+                               const char*                      type_name_for_diag,
+                               std::function<void(const void*)> on_sample) {
+  require_declared_topic(topic_name, "subscribe");
+  remember_topic_type(topic_name, idx, type_name_for_diag);
+
+  const detail::TypeAdapter* adapter = &require_type_adapter(idx, type_name_for_diag);
+  const ReaderQos qos = reader_qos_for_topic(topic_name);
+  if (state_ == LifecycleState::PreActivated) {
+    pending_.push_back(PendingRegistration{
+      [this, topic_name, qos, adapter, on_sample]() {
+        std::shared_ptr<detail::TypedReaderBinding> binding =
+            runtime_->create_reader(topic_name, *adapter, qos);
+        binding->set_on_sample(on_sample);
+        subscriber_bindings_.push_back(binding);
+      }
+    });
+    return;
+  }
+
+  std::shared_ptr<detail::TypedReaderBinding> binding =
+      runtime_->create_reader(topic_name, *adapter, qos);
+  binding->set_on_sample(on_sample);
+  subscriber_bindings_.push_back(binding);
+}
+
+WriteResult Service::publish_erased(const std::string& topic_name,
+                                    std::type_index     idx,
+                                    const char*         type_name_for_diag,
+                                    const void*         sample) {
+  require_declared_topic(topic_name, "publish");
+  remember_topic_type(topic_name, idx, type_name_for_diag);
+
+  std::unordered_map<std::string, std::shared_ptr<detail::TypedWriterBinding> >::const_iterator it =
+      publisher_cache_.find(topic_name);
+  if (it == publisher_cache_.end()) {
+    const detail::TypeAdapter& adapter = require_type_adapter(idx, type_name_for_diag);
+    std::shared_ptr<detail::TypedWriterBinding> binding = runtime_->create_writer(
+        topic_name, adapter, writer_qos_for_topic(topic_name));
+    it = publisher_cache_.insert(std::make_pair(topic_name, binding)).first;
+  }
+
+  return it->second->write_erased(sample);
+}
+
+WriterQos Service::writer_qos_for_topic(const std::string& topic_name) const {
+  if (!topic_config_) {
+    return make_writer_qos(qos::reliable());
+  }
+  return topic_config_->writer_qos_for(topic_name, qos::reliable());
+}
+
+ReaderQos Service::reader_qos_for_topic(const std::string& topic_name) const {
+  if (!topic_config_) {
+    return make_reader_qos(qos::reliable());
+  }
+  return topic_config_->reader_qos_for(topic_name, qos::reliable());
 }
 
 void Service::deactivate() {
@@ -71,13 +183,14 @@ void Service::deactivate() {
   }
 
   // Shut the runtime down FIRST so any in-flight reader callbacks have
-  // drained before we release the typed handles those callbacks closure
-  // over (see HANDOFF §6 — the listener may hold a raw pointer back into
-  // a Subscriber<T>'s binding).
+  // drained before we release the reader bindings that own those callback
+  // thunks.
   runtime_->shutdown();
-  handle_keepalive_.clear();
+  subscriber_bindings_.clear();
   pending_.clear();
-  registered_topics_.clear();
+  publisher_cache_.clear();
+  topic_types_.clear();
+  topic_config_.reset();
 
   state_ = LifecycleState::Deactivated;
 }

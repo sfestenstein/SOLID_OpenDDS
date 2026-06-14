@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// In-memory runtime end-to-end test. Goes through Service + Publisher +
-// Subscriber paths but never touches OpenDDS. Validates that the
+// In-memory runtime end-to-end test. Goes through the service-centric
+// publish/subscribe path but never touches OpenDDS. Validates that the
 // generated adapter's clone() path + the bus's fan-out + the durability
 // replay actually work.
-//
-// Also exercises HANDOFF §6: drop the returned Subscriber<T> shared_ptr,
-// publish, no crash, samples still routed.
 
 #include "pub_sub_open_dds_generated/PingPubSub.h"
 
 #include "pub_sub_open_dds/qos.h"
 #include "pub_sub_open_dds/runtime.h"
 #include "pub_sub_open_dds/service.h"
+#include "pub_sub_open_dds/topic_config.h"
 
 #include <atomic>
 #include <cstdlib>
@@ -36,19 +34,19 @@ int main() {
   // ---- basic fan-out ---------------------------------------------------
   {
     pso::Service svc(pso::make_in_memory_runtime());
-    svc.pre_activate({});
+    auto topic_cfg = pso::TopicConfig::load_from_string(
+        "topic1 = reliable\n");
+    svc.pre_activate({}, std::move(topic_cfg));
 
     std::atomic<int> seen{0};
     int last_counter = -1;
-    auto pub = svc.register_publisher<Smoke::Ping>("topic1");
-    auto sub = svc.register_subscriber<Smoke::Ping>(
+    svc.subscribe<Smoke::Ping>(
         "topic1",
         [&](const Smoke::Ping& m) {
           last_counter = m.counter();
           seen.fetch_add(1);
         });
 
-    svc.activate();
     svc.post_activate();
 
     Smoke::Ping m;
@@ -56,34 +54,36 @@ int main() {
     m.text("hi");
     for (int i = 0; i < 5; ++i) {
       m.counter(i);
-      EXPECT(pub->write(m) == pso::WriteResult::Ok);
+      EXPECT(svc.publish("topic1", m) == pso::WriteResult::Ok);
     }
     EXPECT(seen.load() == 5);
     EXPECT(last_counter == 4);
-    EXPECT(sub->received_count() == 5);
   }
 
   // ---- durability replay (durable writer + durable reader) -------------
   {
     pso::Service svc(pso::make_in_memory_runtime());
-    svc.pre_activate({});
+    auto topic_cfg = pso::TopicConfig::load_from_string(
+        "durable_topic = reliable_transient\n");
+    svc.pre_activate({}, std::move(topic_cfg));
 
     // Write first, then late-join the subscriber.
-    auto pub = svc.register_publisher<Smoke::Ping>(
-        "durable_topic",
-        pso::make_writer_qos(pso::qos::reliable_transient()));
     std::atomic<int> seen{0};
 
-    svc.activate();
     svc.post_activate();
 
     Smoke::Ping m;
     m.id(7);
     for (int i = 0; i < 3; ++i) {
       m.counter(i);
-      pub->write(m);
+      EXPECT(svc.publish("durable_topic", m) == pso::WriteResult::Ok);
     }
     EXPECT(seen.load() == 0);  // no subscriber yet
+
+    svc.subscribe<Smoke::Ping>(
+        "durable_topic",
+        [&](const Smoke::Ping&) { seen.fetch_add(1); });
+    EXPECT(seen.load() == 3);
   }
 
   // ---- HANDOFF §6 regression: drop the subscriber shared_ptr -----------
@@ -91,38 +91,41 @@ int main() {
   // regardless of whether the user holds onto the returned shared_ptr.
   {
     pso::Service svc(pso::make_in_memory_runtime());
-    svc.pre_activate({});
+    auto topic_cfg = pso::TopicConfig::load_from_string(
+        "keepalive_topic = reliable\n");
+    svc.pre_activate({}, std::move(topic_cfg));
 
     std::atomic<int> seen{0};
-    auto pub = svc.register_publisher<Smoke::Ping>("keepalive_topic");
-    {
-      // Register and immediately discard the returned shared_ptr.
-      svc.register_subscriber<Smoke::Ping>(
-          "keepalive_topic",
-          [&](const Smoke::Ping&) { seen.fetch_add(1); });
-    }
+    svc.subscribe<Smoke::Ping>(
+        "keepalive_topic",
+        [&](const Smoke::Ping&) { seen.fetch_add(1); });
 
-    svc.activate();
     svc.post_activate();
 
     Smoke::Ping m;
     m.id(1);
     for (int i = 0; i < 3; ++i) {
       m.counter(i);
-      EXPECT(pub->write(m) == pso::WriteResult::Ok);
+      EXPECT(svc.publish("keepalive_topic", m) == pso::WriteResult::Ok);
     }
     EXPECT(seen.load() == 3);
   }
 
-  // ---- write before activate yields PreconditionFailed ----------------
+  // ---- publish before post_activate is rejected -----------------------
   {
     pso::Service svc(pso::make_in_memory_runtime());
-    svc.pre_activate({});
-    auto pub = svc.register_publisher<Smoke::Ping>("topic_pre");
-    // pub is not yet bound; write() must short-circuit cleanly.
+    auto topic_cfg = pso::TopicConfig::load_from_string(
+        "topic_pre = reliable\n");
+    svc.pre_activate({}, std::move(topic_cfg));
     Smoke::Ping m;
     m.id(0);
-    EXPECT(pub->write(m) == pso::WriteResult::PreconditionFailed);
+    bool threw = false;
+    try {
+      (void)svc.publish("topic_pre", m);
+    } catch (const std::runtime_error&) {
+      threw = true;
+    }
+    EXPECT(threw);
   }
 
   std::cout << "in_memory_roundtrip_test PASS\n";

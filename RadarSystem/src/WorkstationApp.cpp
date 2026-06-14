@@ -31,7 +31,6 @@
 #include "pub_sub_open_dds_generated/TrackingCuePubSub.h"
 #include "pub_sub_open_dds_generated/OperatorChatPubSub.h"
 
-#include "pub_sub_open_dds/qos.h"
 #include "pub_sub_open_dds/service.h"
 #include "pub_sub_open_dds/topic_config.h"
 
@@ -116,37 +115,13 @@ int main(int argc, char* argv[]) {
     auto topic_cfg = TopicConfig::load_from_file(TOPIC_CONFIG_PATH);
     topic_cfg.use_xml_qos_file(QOS_XML_PATH);
 
-    const auto wq_for = [&topic_cfg](const std::string& topic) {
-      auto q = topic_cfg.writer_qos_for(topic, qos::best_effort());
-      std::cout << "[ws] writer topic '" << topic
-                << "' -> QoS '" << q.name() << "'\n";
-      return q;
-    };
-    const auto rq_for = [&topic_cfg](const std::string& topic) {
-      auto q = topic_cfg.reader_qos_for(topic, qos::best_effort());
-      std::cout << "[ws] reader topic '" << topic
-                << "' -> QoS '" << q.name() << "'\n";
-      return q;
-    };
-
     Service svc;
     ServiceConfig cfg;
     cfg.domain_id = DOMAIN_ID;
     for (int i = 1; i < argc; ++i) cfg.runtime_args.emplace_back(argv[i]);
-    svc.pre_activate(cfg);
+    svc.pre_activate(cfg, std::move(topic_cfg));
 
-    auto cmd_pub    = svc.register_publisher<RadarSystem::Command>(
-        "Command", wq_for("Command"));
-    auto req_pub    = svc.register_publisher<RadarSystem::ComponentStatusRequest>(
-        "ComponentStatusRequest", wq_for("ComponentStatusRequest"));
-    auto cue_pub    = svc.register_publisher<RadarSystem::TrackingCue>(
-        "TrackingCue", wq_for("TrackingCue"));
-    auto audit_pub  = svc.register_publisher<RadarSystem::OperatorAuditLog>(
-        "OperatorAuditLog", wq_for("OperatorAuditLog"));
-    auto chat_pub   = svc.register_publisher<RadarSystem::OperatorChat>(
-        "OperatorChat", wq_for("OperatorChat"));
-
-    svc.register_subscriber<RadarSystem::ComponentStatus>(
+    svc.subscribe<RadarSystem::ComponentStatus>(
         "ComponentStatus",
         [](const RadarSystem::ComponentStatus& s) {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
@@ -154,10 +129,9 @@ int main(int argc, char* argv[]) {
                     << " comp=" << s.component_id()
                     << " state=" << to_string(s.state())
                     << " msg='" << s.message() << "'\n";
-        },
-        rq_for("ComponentStatus"));
+      });
 
-    svc.register_subscriber<RadarSystem::RadarTrack>(
+    svc.subscribe<RadarSystem::RadarTrack>(
         "RadarTrack",
         [](const RadarSystem::RadarTrack& t) {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
@@ -166,10 +140,9 @@ int main(int argc, char* argv[]) {
                     << " range=" << t.range_m() << "m"
                     << " bearing=" << t.bearing_deg() << "deg"
                     << " speed=" << t.speed_mps() << "m/s\n";
-        },
-        rq_for("RadarTrack"));
+      });
 
-    svc.register_subscriber<RadarSystem::CommandStatus>(
+    svc.subscribe<RadarSystem::CommandStatus>(
         "CommandStatus",
         [](const RadarSystem::CommandStatus& cs) {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
@@ -177,10 +150,9 @@ int main(int argc, char* argv[]) {
                     << " sensor=" << cs.sensor_id()
                     << " result=" << to_string(cs.result())
                     << " msg='" << cs.message() << "'\n";
-        },
-        rq_for("CommandStatus"));
+      });
 
-    svc.register_subscriber<RadarSystem::SystemAlarm>(
+    svc.subscribe<RadarSystem::SystemAlarm>(
         "SystemAlarm",
         [](const RadarSystem::SystemAlarm& a) {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
@@ -190,14 +162,13 @@ int main(int argc, char* argv[]) {
                     << " comp=" << a.source_component()
                     << " desc='" << a.description()
                     << "' ack='" << a.acknowledged_by() << "'\n";
-        },
-        rq_for("SystemAlarm"));
+      });
 
     // RawIQSample: track per-beam rate and only log every Nth sample so the
     // console stays readable; the streaming QoS will silently drop samples
     // under load — that's the point.
     static std::atomic<long> g_iq_seen{0};
-    svc.register_subscriber<RadarSystem::RawIQSample>(
+    svc.subscribe<RadarSystem::RawIQSample>(
         "RawIQSample",
         [](const RadarSystem::RawIQSample& iq) {
           const long n = g_iq_seen.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -208,19 +179,16 @@ int main(int argc, char* argv[]) {
                     << " seq=" << iq.seq_no()
                     << " freq=" << iq.center_freq_hz()
                     << "Hz (seen " << n << " total)\n";
-        },
-        rq_for("RawIQSample"));
+      });
 
-    svc.register_subscriber<RadarSystem::OperatorChat>(
+    svc.subscribe<RadarSystem::OperatorChat>(
         "OperatorChat",
         [](const RadarSystem::OperatorChat& c) {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
           std::cout << "[ws] chat   <" << c.operator_id()
                     << "#" << c.seq_no() << "> " << c.text() << "\n";
-        },
-        rq_for("OperatorChat"));
+      });
 
-    svc.activate();
     svc.post_activate();
 
     {
@@ -253,7 +221,7 @@ int main(int argc, char* argv[]) {
       c.parameters(c.type() == RadarSystem::CommandType::CMD_SET_SCAN_RATE
                        ? "rate=2hz" : "");
       c.timestamp_ns(now_ns());
-      cmd_pub->write(c);
+      svc.publish("Command", c);
       {
         std::lock_guard<std::mutex> lk(g_cout_mtx);
         std::cout << "[ws] sent command #" << cmd_seq << "\n";
@@ -266,7 +234,7 @@ int main(int argc, char* argv[]) {
       audit.detail(std::string("command #") + std::to_string(cmd_seq)
                    + " type=" + to_string(c.type()));
       audit.timestamp_ns(now_ns());
-      audit_pub->write(audit);
+      svc.publish("OperatorAuditLog", audit);
 
       ++cmd_seq;
 
@@ -277,7 +245,7 @@ int main(int argc, char* argv[]) {
         r.request_id(req_seq);
         r.component_id_filter("");
         r.timestamp_ns(now_ns());
-        req_pub->write(r);
+        svc.publish("ComponentStatusRequest", r);
         {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
           std::cout << "[ws] sent component-status request #" << req_seq << "\n";
@@ -295,7 +263,7 @@ int main(int argc, char* argv[]) {
         cue.range_m(10000.0);
         cue.ownership_strength(10);  // future: exclusive ownership
         cue.timestamp_ns(now_ns());
-        cue_pub->write(cue);
+        svc.publish("TrackingCue", cue);
         {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
           std::cout << "[ws] sent tracking cue bearing=" << cue.bearing_deg() << "\n";
@@ -309,7 +277,7 @@ int main(int argc, char* argv[]) {
         msg.seq_no(chat_seq);
         msg.text("[#" + std::to_string(chat_seq) + "] all stations: status nominal");
         msg.timestamp_ns(now_ns());
-        chat_pub->write(msg);
+        svc.publish("OperatorChat", msg);
         ++chat_seq;
       }
       ++tick;

@@ -1,8 +1,8 @@
-# DreadWithOpenDDS — OpenDDS facade + radar demo
+# SOLID_OpenDDS — OpenDDS facade + radar demo
 
 A reusable OpenDDS facade library (`pub_sub_open_dds`) plus a notional
 radar demo that exercises it. The facade hides every OpenDDS API surface
-behind a small, OpenDDS-free C++17 contract so application code never
+behind a small, OpenDDS-free C++11 contract so application code never
 includes `dds/...` or `ace/...`. A CMake codegen helper emits the per-IDL
 glue from one line per type. Fully containerized in a VS Code dev
 container so you never have to build ACE/TAO/OpenDDS by hand.
@@ -168,27 +168,23 @@ int main(int argc, char* argv[]) {
   cfg.domain_id = 42;
   for (int i = 1; i < argc; ++i)                     // e.g. -DCPSConfigFile rtps.ini
     cfg.runtime_args.emplace_back(argv[i]);
-  svc.pre_activate(cfg);
-
-  auto pub = svc.register_publisher<MyMod::Greeting>("greetings");
-  auto sub = svc.register_subscriber<MyMod::Greeting>(
+  auto topics = TopicConfig::load_from_string("greetings = reliable\n");
+  svc.pre_activate(cfg, std::move(topics));
+  svc.subscribe<MyMod::Greeting>(
       "greetings", [](const MyMod::Greeting& g) { /* ... */ });
-
-  svc.activate();
   svc.post_activate();
 
   MyMod::Greeting g;
   g.text("hello");
-  if (pub->write(g) != WriteResult::Ok) { /* handle */ }
+  if (svc.publish("greetings", g) != WriteResult::Ok) { /* handle */ }
 
   svc.deactivate();
 }
 ```
 
-The same pattern works against an in-memory runtime for fast tests — pass
-`make_in_memory_runtime()` into the `Service` constructor instead.
-[tests/smoke_roundtrip.cpp](tests/smoke_roundtrip.cpp) runs unmodified
-against both.
+The repository's own tests also exercise the same facade shape against an
+in-memory runtime, but that runtime seam lives in the library's private
+source tree rather than the installed public headers.
 
 ## How it works (the 30-second tour)
 
@@ -201,15 +197,15 @@ against both.
 3. **Discovery**. `rtps.ini` selects RTPS discovery so participants find
    each other over UDP multicast — no separate `DCPSInfoRepo` process
    required.
-4. **Pub/Sub**. `Service::pre_activate` initialises the runtime; each
-   `register_publisher<T>` / `register_subscriber<T>` is queued and
-   flushed by `activate()`; the typed handles dispatch through a
-   `void*`-based runtime seam back into the OpenDDS-typed adapter.
-5. **Testability**. `Service` depends on `IRuntime`. The in-memory
-   runtime (`make_in_memory_runtime()`) provides RELIABLE/BEST_EFFORT
-   modeling, KEEP_LAST history depth, and TRANSIENT_LOCAL late-join
-   replay — enough fidelity that the same smoke test runs against both
-   runtimes and behaves the same way.
+4. **Pub/Sub**. `Service::pre_activate` initialises the runtime and loads
+  topic policy; `subscribe<T>` stages readers until `post_activate()` and
+  `publish(topic, sample)` lazily creates writers on first use. The
+  service dispatches through a `void*`-based runtime seam back into the
+  OpenDDS-typed adapter.
+5. **Testability**. Inside this repository, `Service` is exercised against
+  both the real OpenDDS runtime and a private in-memory runtime that
+  models RELIABLE/BEST_EFFORT, KEEP_LAST history depth, and
+  TRANSIENT_LOCAL late-join replay.
 
 ## Troubleshooting
 
@@ -218,8 +214,8 @@ against both.
   init. The `CMAKE_PREFIX_PATH` in [CMakeLists.txt](CMakeLists.txt)
   already covers the default install location.
 - **`no TypeAdapter registered for '…'` at runtime**: a
-  `register_publisher<T>` / `register_subscriber<T>` was called for a
-  type whose generated adapter `.cpp` was not linked into the binary.
+  `publish<T>` / `subscribe<T>` call used a type whose generated adapter
+  `.cpp` was not linked into the binary.
   Add the type to your `pub_sub_open_dds_generate_bindings(... TYPES …)`
   call.
 - **`fatal error: <TypeName>C.h: No such file or directory`** while

@@ -17,10 +17,10 @@
 //
 // No #include of any dds/* or ace/* header anywhere in this file: the
 // pub_sub_open_dds_generated/*PubSub.h wrappers expose only the IDL
-// struct definitions plus the typed Publisher / Subscriber facade. The
-// generated <Type>PubSub_adapter.cpp files (compiled into this target by
-// the pub_sub_open_dds_generate_bindings helper) are the only TUs that
-// see OpenDDS-generated TypeSupportImpl headers.
+// struct definitions plus the service facade. The generated
+// <Type>PubSub_adapter.cpp files (compiled into this target by the
+// pub_sub_open_dds_generate_bindings helper) are the only TUs that see
+// OpenDDS-generated TypeSupportImpl headers.
 //
 // Ctrl-C exits cleanly.
 
@@ -35,7 +35,6 @@
 #include "pub_sub_open_dds_generated/TrackingCuePubSub.h"
 #include "pub_sub_open_dds_generated/OperatorChatPubSub.h"
 
-#include "pub_sub_open_dds/qos.h"
 #include "pub_sub_open_dds/service.h"
 #include "pub_sub_open_dds/topic_config.h"
 
@@ -108,7 +107,7 @@ const char* to_string(RadarSystem::AuditAction a) {
   return "?";
 }
 
-void publish_status(pub_sub_open_dds::Publisher<RadarSystem::ComponentStatus>& pub,
+void publish_status(pub_sub_open_dds::Service& svc,
                     const std::string& component_id,
                     RadarSystem::ComponentState state,
                     const std::string& msg) {
@@ -118,7 +117,7 @@ void publish_status(pub_sub_open_dds::Publisher<RadarSystem::ComponentStatus>& p
   s.state(state);
   s.message(msg);
   s.timestamp_ns(now_ns());
-  pub.write(s);
+  svc.publish("ComponentStatus", s);
 }
 
 } // namespace
@@ -131,42 +130,18 @@ int main(int argc, char* argv[]) {
     auto topic_cfg = TopicConfig::load_from_file(TOPIC_CONFIG_PATH);
     topic_cfg.use_xml_qos_file(QOS_XML_PATH);
 
-    const auto wq_for = [&topic_cfg](const std::string& topic) {
-      auto q = topic_cfg.writer_qos_for(topic, qos::best_effort());
-      std::cout << "[sensor] writer topic '" << topic
-                << "' -> QoS '" << q.name() << "'\n";
-      return q;
-    };
-    const auto rq_for = [&topic_cfg](const std::string& topic) {
-      auto q = topic_cfg.reader_qos_for(topic, qos::best_effort());
-      std::cout << "[sensor] reader topic '" << topic
-                << "' -> QoS '" << q.name() << "'\n";
-      return q;
-    };
-
     Service svc;
     ServiceConfig cfg;
     cfg.domain_id = DOMAIN_ID;
     // Forward every CLI arg (typically `-DCPSConfigFile rtps.ini`) into the
     // OpenDDS runtime. The facade owns the conversion to ACE_TCHAR**.
     for (int i = 1; i < argc; ++i) cfg.runtime_args.emplace_back(argv[i]);
-    svc.pre_activate(cfg);
-
-    auto status_pub     = svc.register_publisher<RadarSystem::ComponentStatus>(
-        "ComponentStatus", wq_for("ComponentStatus"));
-    auto track_pub      = svc.register_publisher<RadarSystem::RadarTrack>(
-        "RadarTrack", wq_for("RadarTrack"));
-    auto cmd_status_pub = svc.register_publisher<RadarSystem::CommandStatus>(
-        "CommandStatus", wq_for("CommandStatus"));
-    auto alarm_pub      = svc.register_publisher<RadarSystem::SystemAlarm>(
-        "SystemAlarm", wq_for("SystemAlarm"));
-    auto iq_pub         = svc.register_publisher<RadarSystem::RawIQSample>(
-        "RawIQSample", wq_for("RawIQSample"));
+    svc.pre_activate(cfg, std::move(topic_cfg));
 
     // Inbound Command -> log it and ack with a CommandStatus.
-    svc.register_subscriber<RadarSystem::Command>(
+    svc.subscribe<RadarSystem::Command>(
         "Command",
-        [cmd_status_pub](const RadarSystem::Command& cmd) {
+      [&svc](const RadarSystem::Command& cmd) {
           if (!cmd.target_sensor_id().empty() && cmd.target_sensor_id() != SENSOR_ID) {
             return; // not addressed to us
           }
@@ -182,14 +157,13 @@ int main(int argc, char* argv[]) {
           cs.result(RadarSystem::CommandResult::CMD_ACCEPTED);
           cs.message("acknowledged");
           cs.timestamp_ns(now_ns());
-          cmd_status_pub->write(cs);
-        },
-        rq_for("Command"));
+          svc.publish("CommandStatus", cs);
+        });
 
     // Inbound ComponentStatusRequest -> push current status for every component.
-    svc.register_subscriber<RadarSystem::ComponentStatusRequest>(
+    svc.subscribe<RadarSystem::ComponentStatusRequest>(
         "ComponentStatusRequest",
-        [status_pub](const RadarSystem::ComponentStatusRequest& req) {
+      [&svc](const RadarSystem::ComponentStatusRequest& req) {
           if (!req.target_sensor_id().empty() && req.target_sensor_id() != SENSOR_ID) {
             return;
           }
@@ -198,17 +172,16 @@ int main(int argc, char* argv[]) {
             std::cout << "[sensor] status request #" << req.request_id()
                       << " filter='" << req.component_id_filter() << "'\n";
           }
-          publish_status(*status_pub, "alpha.radar_array",
+          publish_status(svc, "alpha.radar_array",
                          RadarSystem::ComponentState::COMPONENT_ONLINE,
                          "on-demand report");
-          publish_status(*status_pub, "alpha.signal_processor",
+          publish_status(svc, "alpha.signal_processor",
                          RadarSystem::ComponentState::COMPONENT_ONLINE,
                          "on-demand report");
-        },
-        rq_for("ComponentStatusRequest"));
+        });
 
     // Inbound TrackingCue -> log it. A real sensor would slew its beam.
-    svc.register_subscriber<RadarSystem::TrackingCue>(
+    svc.subscribe<RadarSystem::TrackingCue>(
         "TrackingCue",
         [](const RadarSystem::TrackingCue& cue) {
           if (!cue.target_sensor_id().empty() && cue.target_sensor_id() != SENSOR_ID) return;
@@ -218,21 +191,18 @@ int main(int argc, char* argv[]) {
                     << " elev=" << cue.elevation_deg()
                     << " range=" << cue.range_m()
                     << " (ownership=" << cue.ownership_strength() << ")\n";
-        },
-        rq_for("TrackingCue"));
+        });
 
     // Inbound OperatorAuditLog -> observe (one-line dump per entry).
-    svc.register_subscriber<RadarSystem::OperatorAuditLog>(
+    svc.subscribe<RadarSystem::OperatorAuditLog>(
         "OperatorAuditLog",
         [](const RadarSystem::OperatorAuditLog& a) {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
           std::cout << "[sensor] audit op='" << a.operator_id()
                     << "' action=" << to_string(a.action())
                     << " detail='" << a.detail() << "'\n";
-        },
-        rq_for("OperatorAuditLog"));
+        });
 
-    svc.activate();
     svc.post_activate();
 
     {
@@ -273,15 +243,15 @@ int main(int argc, char* argv[]) {
           qs.push_back(static_cast<float>(0.1 * n - tick));
         }
         iq.timestamp_ns(now_ns());
-        iq_pub->write(iq);
+        svc.publish("RawIQSample", iq);
       }
 
       // Once-per-second housekeeping.
       if ((tick % 10) == 0) {
         const uint32_t slow_tick = tick / 10;
-        publish_status(*status_pub, "alpha.radar_array",
+        publish_status(svc, "alpha.radar_array",
                        RadarSystem::ComponentState::COMPONENT_ONLINE, "heartbeat");
-        publish_status(*status_pub, "alpha.signal_processor",
+        publish_status(svc, "alpha.signal_processor",
                        RadarSystem::ComponentState::COMPONENT_ONLINE, "heartbeat");
 
         for (uint32_t k = 0; k < 2; ++k) {
@@ -293,7 +263,7 @@ int main(int argc, char* argv[]) {
           t.elevation_deg(2.5 + k);
           t.speed_mps(150.0 + k * 25.0);
           t.timestamp_ns(now_ns());
-          track_pub->write(t);
+          svc.publish("RadarTrack", t);
         }
       }
 
@@ -308,7 +278,7 @@ int main(int argc, char* argv[]) {
         a.description("periodic synthetic alarm #" + std::to_string(alarm_seq));
         a.acknowledged_by("");          // unacknowledged
         a.timestamp_ns(now_ns());
-        alarm_pub->write(a);
+        svc.publish("SystemAlarm", a);
         {
           std::lock_guard<std::mutex> lk(g_cout_mtx);
           std::cout << "[sensor] raised alarm #" << alarm_seq

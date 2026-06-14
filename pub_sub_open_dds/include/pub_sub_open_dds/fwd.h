@@ -13,7 +13,7 @@
 
 namespace pub_sub_open_dds {
 
-// Outcome of a Publisher<T>::write call. Replaces the previously leaked
+// Outcome of a publish operation. Replaces the previously leaked
 // DDS::ReturnCode_t. Values cover the common DDS write outcomes plus a
 // catch-all for runtime-specific failures.
 enum class WriteResult {
@@ -43,9 +43,6 @@ class  WriterQos;
 class  ReaderQos;
 class  TopicConfig;
 class  IRuntime;
-
-template <class T> class Publisher;
-template <class T> class Subscriber;
 
 namespace detail {
 class TypedWriterBinding {

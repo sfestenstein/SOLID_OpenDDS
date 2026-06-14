@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(OpenDDS REQUIRED)
+
+include("${CMAKE_CURRENT_LIST_DIR}/pub_sub_open_ddsTargets.cmake")
+
+set_and_check(PUB_SUB_OPEN_DDS_CODEGEN_TEMPLATES
+  "${CMAKE_CURRENT_LIST_DIR}/templates")
+set_and_check(PUB_SUB_OPEN_DDS_ADAPTER_SUPPORT_INCLUDE_DIR
+  "${CMAKE_CURRENT_LIST_DIR}/private_include")
+set(PUB_SUB_OPEN_DDS_TARGET_NAME "pub_sub_open_dds::pub_sub_open_dds")
+
+include("${CMAKE_CURRENT_LIST_DIR}/pub_sub_open_dds_codegen.cmake")

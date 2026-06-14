@@ -9,6 +9,7 @@
 
 #include "pub_sub_open_dds/runtime.h"
 #include "pub_sub_open_dds/service.h"
+#include "pub_sub_open_dds/topic_config.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -65,12 +66,9 @@ int main() {
     EXPECT(svc.state() == pso::LifecycleState::PreActivated);
     EXPECT(rt->init_calls == 1);
 
-    svc.activate();
-    EXPECT(svc.state() == pso::LifecycleState::Activated);
-    EXPECT(rt->activate_calls == 1);
-
     svc.post_activate();
     EXPECT(svc.state() == pso::LifecycleState::PostActivated);
+    EXPECT(rt->activate_calls == 1);
 
     svc.deactivate();
     EXPECT(svc.state() == pso::LifecycleState::Deactivated);
@@ -81,13 +79,11 @@ int main() {
   {
     auto rt = std::make_shared<RecordingRuntime>();
     pso::Service svc(rt);
-    EXPECT(throws_error([&]{ svc.activate(); }));
     EXPECT(throws_error([&]{ svc.post_activate(); }));
     svc.pre_activate({});
     EXPECT(throws_error([&]{ svc.pre_activate({}); }));
+    svc.post_activate();
     EXPECT(throws_error([&]{ svc.post_activate(); }));
-    svc.activate();
-    EXPECT(throws_error([&]{ svc.activate(); }));
     EXPECT(throws_error([&]{ svc.pre_activate({}); }));
   }
 
@@ -97,7 +93,7 @@ int main() {
     {
       pso::Service svc(rt);
       svc.pre_activate({});
-      svc.activate();
+      svc.post_activate();
       // no explicit deactivate — destructor handles it
     }
     EXPECT(rt->shutdown_calls == 1);
@@ -113,15 +109,18 @@ int main() {
     EXPECT(rt->shutdown_calls == 0);
   }
 
-  // ---- registering for an unknown user type throws a clear runtime_error --
+  // ---- subscribing with an unknown user type throws a clear runtime_error --
   {
     struct UnregisteredType {};
     auto rt = std::make_shared<RecordingRuntime>();
     pso::Service svc(rt);
-    svc.pre_activate({});
+    auto topic_cfg = pso::TopicConfig::load_from_string("nope = reliable\n");
+    svc.pre_activate({}, std::move(topic_cfg));
     try {
-      svc.register_publisher<UnregisteredType>("nope");
-      fail("register_publisher of unregistered type did not throw");
+      svc.subscribe<UnregisteredType>(
+          "nope",
+          [](const UnregisteredType&) {});
+      fail("subscribe of unregistered type did not throw");
     } catch (const std::runtime_error& e) {
       const std::string msg = e.what();
       EXPECT(msg.find("no TypeAdapter") != std::string::npos);

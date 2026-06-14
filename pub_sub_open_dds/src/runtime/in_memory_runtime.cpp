@@ -2,7 +2,7 @@
 //
 // InMemoryRuntime — process-local topic bus that implements IRuntime
 // without any DDS / OpenDDS / ACE plumbing. Tests use this to exercise
-// Service / Publisher<T> / Subscriber<T> without standing up RTPS.
+// Service publish/subscribe flows without standing up RTPS.
 //
 // Fidelity (per the implementation plan, option B):
 //

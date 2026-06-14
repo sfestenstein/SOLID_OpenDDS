@@ -4,24 +4,13 @@
 // Source template: pub_sub_open_dds/cmake/templates/PubSub.h.in
 // Generated for IDL type: @PSO_GEN_FQN@
 //
-// User-facing typed-handle wrapper for `@PSO_GEN_FQN@`. Include this from
-// application code; it pulls in only the IDL-derived `@PSO_GEN_C_HEADER@`
-// (which carries the IDL struct definition itself) plus the OpenDDS-free
-// pub_sub_open_dds facade headers. The generated adapter `.cpp` next to
-// this header is the only TU that includes `@PSO_GEN_TYPESUPPORT_HDR@`,
-// which is what keeps OpenDDS out of application TUs that just want to
-// publish or subscribe.
+// User-facing wrapper for `@PSO_GEN_FQN@`. Include this from application
+// code when you need the IDL struct definition alongside the facade API.
+// The generated adapter `.cpp` next to this header is the only TU that
+// includes `@PSO_GEN_TYPESUPPORT_HDR@`, which is what keeps OpenDDS out of
+// application TUs that just want to publish or subscribe through Service.
 
 #pragma once
 
 #include "@PSO_GEN_C_HEADER@"
-
-#include "pub_sub_open_dds/publisher.h"
-#include "pub_sub_open_dds/subscriber.h"
-
-namespace pub_sub_open_dds::generated {
-
-using @PSO_GEN_TYPE_NAME@Publisher  = pub_sub_open_dds::Publisher<@PSO_GEN_FQN@>;
-using @PSO_GEN_TYPE_NAME@Subscriber = pub_sub_open_dds::Subscriber<@PSO_GEN_FQN@>;
-
-} // namespace pub_sub_open_dds::generated
+#include "pub_sub_open_dds/service.h"

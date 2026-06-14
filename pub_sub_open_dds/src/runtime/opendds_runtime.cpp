@@ -238,7 +238,7 @@ public:
         static_cast<void*>(subscriber_.in()),
         static_cast<void*>(topic_var.in()),
         qos,
-        /*on_sample=*/{});  // Subscriber<T> installs the thunk after we return
+      /*on_sample=*/{});  // Service installs the callback thunk after we return
     if (!b) {
       throw std::runtime_error("OpenDddsRuntime: TypeAdapter for '"
                                + std::string(adapter.type_name())

@@ -56,6 +56,6 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
  && chmod 0440 /etc/sudoers.d/${USERNAME}
 
 USER ${USERNAME}
-WORKDIR /workspaces/DreadWithOpenDDS
+WORKDIR /workspaces/SOLID_OpenDDS
 run alias ll='ls -alhF --color=auto' && echo "alias ll='ls -alhF --color=auto'" >> ~/.bashrc
 run alias lt='ls -alhorF --color=auto' && echo "alias lt='ls -alhorF --color=auto'" >> ~/.bashrc

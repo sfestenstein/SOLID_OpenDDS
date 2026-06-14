@@ -1,12 +1,15 @@
 {
-  "name": "OpenDDS MVP",
+  "name": "SOLID_OpenDDS",
   "build": {
     "context": "..",
     "dockerfile": "Dockerfile"
   },
   "remoteUser": "dev",
-  "workspaceFolder": "/workspaces/DreadWithOpenDDS",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/DreadWithOpenDDS,type=bind,consistency=cached",
+  "workspaceFolder": "/workspaces/SOLID_OpenDDS",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/SOLID_OpenDDS,type=bind,consistency=cached",
+  "mounts": [
+    "source=solid-opendds-build,target=/workspaces/SOLID_OpenDDS/build,type=volume"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -16,6 +19,7 @@
         "llvm-vs-code-extensions.vscode-clangd"
       ],
       "settings": {
+        "cmake.buildDirectory": "/workspaces/SOLID_OpenDDS/build",
         "cmake.configureArgs": [
           "-DCMAKE_PREFIX_PATH=/opt/OpenDDS"
         ],

@@ -25,9 +25,8 @@
 #include <thread>
 
 namespace {
-constexpr int  N_SAMPLES  = 5;
-constexpr auto MATCH_WAIT = std::chrono::seconds(10);
-constexpr auto RECV_WAIT  = std::chrono::seconds(10);
+constexpr int  N_SAMPLES = 5;
+constexpr auto RECV_WAIT = std::chrono::seconds(10);
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -60,31 +59,21 @@ int main(int argc, char* argv[]) {
     cfg.runtime_args = runtime_args;
     svc.pre_activate(cfg);
 
-    auto pub = svc.register_publisher<Smoke::Ping>("smoke_topic");
-    auto sub = svc.register_subscriber<Smoke::Ping>(
+    svc.subscribe<Smoke::Ping>(
         "smoke_topic",
         [&received](const Smoke::Ping& m) {
           (void)m;
           received.fetch_add(1, std::memory_order_relaxed);
         });
 
-    svc.activate();
     svc.post_activate();
-
-    // The in-memory runtime is synchronous and matches immediately; the
-    // OpenDDS runtime needs the WaitSet path.
-    if (runtime_kind == "opendds" && !pub->wait_for_subscribers(MATCH_WAIT)) {
-      std::cerr << "smoke[" << runtime_kind
-                << "]: publisher never saw the local subscriber\n";
-      return 2;
-    }
 
     Smoke::Ping m;
     m.id(7);
     m.text("ping");
     for (int i = 0; i < N_SAMPLES; ++i) {
       m.counter(i);
-      const auto rc = pub->write(m);
+      const auto rc = svc.publish("smoke_topic", m);
       if (rc != WriteResult::Ok) {
         std::cerr << "smoke[" << runtime_kind << "]: write failed at i=" << i
                   << " (WriteResult=" << static_cast<int>(rc) << ")\n";

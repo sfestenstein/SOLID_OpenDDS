@@ -22,9 +22,9 @@
 # For each `Namespace::TypeName` in TYPES, the helper emits:
 #
 #   <gen_dir>/pub_sub_open_dds_generated/<TypeName>PubSub.h
-#       — user-facing wrapper. Includes <TypeName>C.h, exposes
-#         `using <TypeName>Publisher = pub_sub_open_dds::Publisher<Ns::TypeName>;`
-#         and ditto Subscriber. No OpenDDS API surface beyond what
+#       — user-facing wrapper. Includes <TypeName>C.h plus Service so
+#         application code sees the IDL struct definition and the facade
+#         entrypoint together. No OpenDDS API surface beyond what
 #         <TypeName>C.h itself brings (which is unavoidable: the IDL
 #         struct definition lives there).
 #
@@ -42,6 +42,18 @@ if(NOT DEFINED PUB_SUB_OPEN_DDS_CODEGEN_TEMPLATES)
     "pub_sub_open_dds_codegen.cmake: PUB_SUB_OPEN_DDS_CODEGEN_TEMPLATES is not "
     "set. Set it (typically in the facade's CMakeLists.txt) before including "
     "this file.")
+endif()
+if(NOT DEFINED PUB_SUB_OPEN_DDS_ADAPTER_SUPPORT_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "pub_sub_open_dds_codegen.cmake: PUB_SUB_OPEN_DDS_ADAPTER_SUPPORT_INCLUDE_DIR is not "
+    "set. Set it to the private include root that contains pub_sub_open_dds/detail/."
+  )
+endif()
+if(NOT DEFINED PUB_SUB_OPEN_DDS_TARGET_NAME)
+  message(FATAL_ERROR
+    "pub_sub_open_dds_codegen.cmake: PUB_SUB_OPEN_DDS_TARGET_NAME is not set. "
+    "Set it to the facade library target that generated adapters should link against."
+  )
 endif()
 
 function(pub_sub_open_dds_generate_bindings)
@@ -124,7 +136,7 @@ function(pub_sub_open_dds_generate_bindings)
 
   target_sources(${PSO_TARGET} PRIVATE ${_generated_sources})
   target_include_directories(${PSO_TARGET} PRIVATE "${_gen_dir}")
-  target_include_directories(${PSO_TARGET} PRIVATE "${CMAKE_SOURCE_DIR}/pub_sub_open_dds/src")
-  target_link_libraries(${PSO_TARGET} PRIVATE pub_sub_open_dds ${PSO_IDL_TARGET})
+  target_include_directories(${PSO_TARGET} PRIVATE "${PUB_SUB_OPEN_DDS_ADAPTER_SUPPORT_INCLUDE_DIR}")
+  target_link_libraries(${PSO_TARGET} PRIVATE ${PUB_SUB_OPEN_DDS_TARGET_NAME} ${PSO_IDL_TARGET})
   add_dependencies(${PSO_TARGET} ${PSO_IDL_TARGET})
 endfunction()

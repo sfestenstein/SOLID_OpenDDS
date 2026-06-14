@@ -15,7 +15,7 @@ add_subdirectory(idl)
 # Same test source compiled into one executable that takes the runtime as
 # its first positional argument. Both CTest entries point at this binary.
 add_executable(smoke_roundtrip smoke_roundtrip.cpp)
-target_include_directories(smoke_roundtrip PRIVATE ${CMAKE_SOURCE_DIR}/pub_sub_open_dds/src)
+target_link_libraries(smoke_roundtrip PRIVATE pub_sub_open_dds_test_support)
 pub_sub_open_dds_generate_bindings(
   TARGET     smoke_roundtrip
   IDL_TARGET smoke_idl
@@ -43,7 +43,7 @@ set_tests_properties(smoke_roundtrip_inmemory PROPERTIES TIMEOUT 10)
 # scenarios (HANDOFF §6 keepalive regression, durability, pre-activate
 # guards).
 add_executable(in_memory_roundtrip_test unit/in_memory_roundtrip_test.cpp)
-target_include_directories(in_memory_roundtrip_test PRIVATE ${CMAKE_SOURCE_DIR}/pub_sub_open_dds/src)
+target_link_libraries(in_memory_roundtrip_test PRIVATE pub_sub_open_dds_test_support)
 pub_sub_open_dds_generate_bindings(
   TARGET     in_memory_roundtrip_test
   IDL_TARGET smoke_idl
@@ -54,8 +54,7 @@ set_tests_properties(in_memory_roundtrip_test PROPERTIES TIMEOUT 10)
 
 # ---- pure unit tests (no IDL needed) -------------------------------------
 add_executable(lifecycle_test    unit/lifecycle_test.cpp)
-target_include_directories(lifecycle_test PRIVATE ${CMAKE_SOURCE_DIR}/pub_sub_open_dds/src)
-target_link_libraries(lifecycle_test    PRIVATE pub_sub_open_dds)
+target_link_libraries(lifecycle_test    PRIVATE pub_sub_open_dds_test_support)
 add_test(NAME lifecycle_test    COMMAND lifecycle_test)
 set_tests_properties(lifecycle_test PROPERTIES TIMEOUT 10)
 
@@ -80,8 +79,7 @@ if(TARGET OpenDDS::QOS_XML_XSC_Handler)
     COPYONLY
   )
   add_executable(xml_qos_test xml_qos_test.cpp)
-  target_include_directories(xml_qos_test PRIVATE ${CMAKE_SOURCE_DIR}/pub_sub_open_dds/src)
-  target_link_libraries(xml_qos_test PRIVATE pub_sub_open_dds)
+  target_link_libraries(xml_qos_test PRIVATE pub_sub_open_dds_test_support)
   add_test(NAME xml_qos_test
            COMMAND xml_qos_test
                    -DCPSConfigFile ${CMAKE_CURRENT_BINARY_DIR}/rtps.ini

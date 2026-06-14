@@ -188,8 +188,8 @@ private:
 };
 
 // Process-static registration. Linking this .cpp into the consumer's
-// target ensures `pub_sub_open_dds::Service::register_publisher<UserType>`
-// can find the adapter at runtime.
+// target ensures `pub_sub_open_dds::Service::publish<UserType>` and
+// `subscribe<UserType>` can find the adapter at runtime.
 const Adapter& adapter_instance() {
   static const Adapter a;
   return a;
