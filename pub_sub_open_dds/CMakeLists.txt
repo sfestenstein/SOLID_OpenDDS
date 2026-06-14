@@ -12,16 +12,15 @@ set(_pub_sub_open_dds_public_headers
   include/pub_sub_open_dds/fwd.h
   include/pub_sub_open_dds/service_config.h
   include/pub_sub_open_dds/qos.h
-  include/pub_sub_open_dds/qos_profile.h
   include/pub_sub_open_dds/service.h
   include/pub_sub_open_dds/topic_config.h
 )
 
 set(_pub_sub_open_dds_private_codegen_headers
-  src/pub_sub_open_dds/detail/data_adapter.h
-  src/pub_sub_open_dds/detail/opendds_bindings.h
-  src/pub_sub_open_dds/detail/registry.h
-  src/pub_sub_open_dds/detail/typed_binding.h
+  src/data_adapter.h
+  src/opendds_bindings.h
+  src/registry.h
+  src/typed_binding.h
 )
 
 set(PUB_SUB_OPEN_DDS_INSTALL_CMAKEDIR
@@ -33,8 +32,7 @@ add_library(pub_sub_open_dds STATIC
   src/qos_profile.cpp
   src/topic_config.cpp
   src/registry.cpp
-  src/runtime/opendds_runtime.cpp
-  src/runtime/in_memory_runtime.cpp
+  src/opendds_runtime.cpp
   ${_pub_sub_open_dds_public_headers}
 )
 
@@ -50,7 +48,7 @@ target_link_libraries(pub_sub_open_dds
     # OpenDDS core + RTPS transport are PUBLIC because the generated
     # <TypeName>PubSub_adapter.cpp files (compiled into consumer targets,
     # not into this library) call OpenDDS symbols via the private
-    # detail/opendds_bindings.h. Consumers therefore need the OpenDDS
+    # opendds_bindings.h. Consumers therefore need the OpenDDS
     # libraries on their link line — but they do NOT include any DDS
     # headers from their own code.
     OpenDDS::Dcps
@@ -110,7 +108,7 @@ install(FILES ${_pub_sub_open_dds_public_headers}
 )
 
 install(FILES ${_pub_sub_open_dds_private_codegen_headers}
-  DESTINATION ${PUB_SUB_OPEN_DDS_INSTALL_CMAKEDIR}/private_include/pub_sub_open_dds/detail
+  DESTINATION ${PUB_SUB_OPEN_DDS_INSTALL_CMAKEDIR}/private_include
 )
 
 install(FILES

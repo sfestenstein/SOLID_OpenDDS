@@ -2,7 +2,7 @@
 //
 // Built-in QoS profile sanity check. Asserts each profile's QosProfile
 // fields match what the documentation table in README claims. Pure value
-// checks — no runtime, no OpenDDS, no in-memory bus.
+// checks — no runtime seam or OpenDDS transport involved.
 
 #include "pub_sub_open_dds/qos.h"
 

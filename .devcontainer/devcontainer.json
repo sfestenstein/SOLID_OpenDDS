@@ -33,5 +33,6 @@
       }
     }
   },
-  "postCreateCommand": "echo 'source /opt/OpenDDS/setenv.sh' >> ~/.bashrc"
+  "postCreateCommand": "echo 'source /opt/OpenDDS/setenv.sh' >> ~/.bashrc && sudo mkdir -p /workspaces/SOLID_OpenDDS/build && sudo chown -R dev:dev /workspaces/SOLID_OpenDDS/build",
+  "postStartCommand": "sudo mkdir -p /workspaces/SOLID_OpenDDS/build && sudo chown -R dev:dev /workspaces/SOLID_OpenDDS/build"
 }

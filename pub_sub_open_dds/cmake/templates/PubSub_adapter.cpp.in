@@ -18,14 +18,14 @@
 //                                <DataWriter>::_narrow + write thunk
 //   * make_opendds_reader    -> subscriber->create_datareader +
 //                                OpenDddsListener<T,...> + binding install
-//   * clone (for InMemoryRuntime) -> std::make_shared<T>(*sample)
+//   * clone (for runtime test doubles) -> std::make_shared<T>(*sample)
 
 #include "@PSO_GEN_TYPESUPPORT_HDR@"
 
-#include "pub_sub_open_dds/detail/data_adapter.h"
-#include "pub_sub_open_dds/detail/opendds_bindings.h"
-#include "pub_sub_open_dds/detail/registry.h"
-#include "pub_sub_open_dds/detail/typed_binding.h"
+#include "data_adapter.h"
+#include "opendds_bindings.h"
+#include "registry.h"
+#include "typed_binding.h"
 #include "pub_sub_open_dds/qos.h"
 
 #include <dds/DCPS/Marked_Default_Qos.h>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include "pub_sub_open_dds/detail/data_adapter.h"
+#include "data_adapter.h"
 
 #include <typeinfo>
 #include <typeindex>

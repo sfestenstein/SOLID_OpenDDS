@@ -36,8 +36,6 @@ are intentionally small:
 	- `ServiceConfig`
 - `qos.h`
 	- `QosProfile`, `WriterQos`, `ReaderQos`, built-in profiles
-- `qos_profile.h`
-	- compatibility shim that includes `qos.h`
 - `topic_config.h`
 	- `TopicConfig`
 - `service.h`
@@ -50,7 +48,7 @@ Notably, these headers are no longer public:
 - `publisher.h`
 - `subscriber.h`
 - `runtime.h`
-- `detail/*`
+- `data_adapter.h`, `opendds_bindings.h`, `registry.h`, `typed_binding.h`
 - `error.h`
 
 That matches the current user model: application code knows about `Service`,
@@ -73,22 +71,20 @@ pub_sub_open_dds/
 ├── include/pub_sub_open_dds/
 │   ├── fwd.h
 │   ├── qos.h
-│   ├── qos_profile.h
 │   ├── service.h
 │   ├── service_config.h
 │   └── topic_config.h
 └── src/
-		├── service.cpp
+		├── data_adapter.h
+		├── opendds_bindings.h
+		├── opendds_runtime.cpp              # real OpenDDS runtime impl
 		├── qos_profile.cpp
-		├── topic_config.cpp
 		├── registry.cpp
+		├── registry.h
 		├── runtime.h                        # private runtime seam
-		├── runtime/
-		│   ├── in_memory_runtime.cpp        # private test/runtime fake
-		│   └── opendds_runtime.cpp          # real OpenDDS runtime impl
-		└── pub_sub_open_dds/detail/
-				├── data_adapter.h
-				└── opendds_bindings.h
+		├── service.cpp
+		├── topic_config.cpp
+		└── typed_binding.h
 ```
 
 Radar demo code in `RadarSystem/src/` includes only:
@@ -158,19 +154,11 @@ Implications:
 
 - External consumers are expected to use the default OpenDDS-backed
 	`Service` constructor.
-- Repository tests can still exercise `Service` against the private
-	in-memory runtime because test targets add `pub_sub_open_dds/src` to
-	their include path.
+- Repository unit tests can inject lightweight `IRuntime` test doubles
+	for lifecycle/interaction checks without linking transport behavior.
+- OpenDDS-specific behavior is validated by integration tests.
 - `runtime.h` staying private is intentional: it supports repository
 	testing and implementation isolation, not the normal application API.
-
-The in-memory runtime models enough semantics to keep the tests meaningful:
-
-- synchronous delivery on write
-- topic/type consistency checks
-- KEEP_LAST history
-- durable late-join replay
-- RELIABLE/BEST_EFFORT recorded at the façade level
 
 ---
 
@@ -249,11 +237,11 @@ Useful checks while iterating:
 ```bash
 # Build the main library/apps/tests slice used during this refactor.
 cmake --build build --target pub_sub_open_dds SensorApp WorkstationApp \
-	lifecycle_test in_memory_roundtrip_test smoke_roundtrip
+	lifecycle_test smoke_roundtrip xml_qos_test
 
 # Run the focused validation slice.
 ctest --test-dir build --output-on-failure \
-	-R 'lifecycle_test|in_memory_roundtrip_test|smoke_roundtrip_inmemory'
+	-R 'lifecycle_test|smoke_roundtrip_opendds|xml_qos_test'
 
 # Confirm the public include tree contains only the intended headers.
 find pub_sub_open_dds/include/pub_sub_open_dds -maxdepth 1 -type f | sort
@@ -263,9 +251,7 @@ find pub_sub_open_dds/include/pub_sub_open_dds -maxdepth 1 -type f | sort
 
 ## 11. Deferred work
 
-- Decide whether the private runtime seam should stay repository-only or be
-	promoted to a supported external testing API in a future iteration.
+- Decide whether runtime test doubles should move from ad-hoc test classes
+	to a shared mock framework utility.
 - Broaden docs/examples around `TopicConfig` as the canonical declaration
 	source for topics.
-- If external packaging matters later, add an install/export story for the
-	trimmed public header set.

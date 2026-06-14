@@ -18,8 +18,7 @@ container so you never have to build ACE/TAO/OpenDDS by hand.
 ├── pub_sub_open_dds/     # Facade library + CMake codegen helper for per-IDL glue
 ├── RadarSystem/          # Notional radar demo (SensorApp + WorkstationApp,
 │                         #   own IDL + own CMakeLists), domain 43
-├── tests/                # Smoke test + unit tests; runs on both OpenDDS and
-│                         #   an in-memory runtime so QoS-sensitive tests are fast
+├── tests/                # OpenDDS smoke/integration tests + unit tests
 └── docs/HANDOFF.md       # Engineering notes (gotchas, conventions, design rationale)
 ```
 
@@ -48,16 +47,14 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Seven tests run:
+Current tests:
 
 | Test | Runtime | Purpose |
 | ---- | ------- | ------- |
 | `smoke_roundtrip_opendds`   | RTPS, domain 42 | End-to-end pub/sub round-trip over the real transport. |
-| `smoke_roundtrip_inmemory`  | in-memory bus   | Same `.cpp`, in-memory fake — milliseconds, no DDS env. |
-| `in_memory_roundtrip_test`  | in-memory bus   | Durability replay + `handle_keepalive_` regression + write-before-activate. |
-| `lifecycle_test`            | no runtime      | `Service` state machine + missing-adapter error message. |
-| `qos_profile_test`          | no runtime      | Built-in QoS profile field values. |
-| `topic_config_test`         | no runtime      | INI parser corner cases (`TopicConfig::load_from_string`). |
+| `lifecycle_test`            | GMock runtime double | `Service` state machine + missing-adapter error message. |
+| `qos_profile_test`          | pure value checks | Built-in QoS profile field values. |
+| `topic_config_test`         | parser-only     | INI parser corner cases (`TopicConfig::load_from_string`). |
 | `xml_qos_test`              | OpenDDS XML loader | Locks in the fix for uninitialised fields in XML-resolved QoS. |
 
 ## Run the radar demo
@@ -182,9 +179,9 @@ int main(int argc, char* argv[]) {
 }
 ```
 
-The repository's own tests also exercise the same facade shape against an
-in-memory runtime, but that runtime seam lives in the library's private
-source tree rather than the installed public headers.
+The repository's tests exercise the same facade shape through OpenDDS
+integration tests plus unit tests that inject a lightweight `IRuntime`
+test double.
 
 ## How it works (the 30-second tour)
 
@@ -202,10 +199,9 @@ source tree rather than the installed public headers.
   `publish(topic, sample)` lazily creates writers on first use. The
   service dispatches through a `void*`-based runtime seam back into the
   OpenDDS-typed adapter.
-5. **Testability**. Inside this repository, `Service` is exercised against
-  both the real OpenDDS runtime and a private in-memory runtime that
-  models RELIABLE/BEST_EFFORT, KEEP_LAST history depth, and
-  TRANSIENT_LOCAL late-join replay.
+5. **Testability**. Inside this repository, `Service` is exercised through
+  OpenDDS integration tests and unit tests that inject a runtime test
+  double via the private runtime seam.
 
 ## Troubleshooting
 

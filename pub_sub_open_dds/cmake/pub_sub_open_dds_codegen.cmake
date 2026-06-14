@@ -46,7 +46,7 @@ endif()
 if(NOT DEFINED PUB_SUB_OPEN_DDS_ADAPTER_SUPPORT_INCLUDE_DIR)
   message(FATAL_ERROR
     "pub_sub_open_dds_codegen.cmake: PUB_SUB_OPEN_DDS_ADAPTER_SUPPORT_INCLUDE_DIR is not "
-    "set. Set it to the private include root that contains pub_sub_open_dds/detail/."
+    "set. Set it to the private include root that contains the generated-adapter support headers."
   )
 endif()
 if(NOT DEFINED PUB_SUB_OPEN_DDS_TARGET_NAME)

@@ -18,8 +18,9 @@
 namespace pub_sub_open_dds {
 
 // Facade over a domain participant's lifecycle. Depends on `IRuntime`,
-// which lets the same Service instance be exercised against either the
-// real OpenDDS transport or the in-memory test fake.
+// which keeps transport-specific setup behind a private seam. Production
+// code uses the default OpenDDS runtime; repository tests can inject a
+// small runtime test double.
 //
 //   Service svc;                                       // default: OpenDDS runtime
 //   ServiceConfig cfg{.domain_id = 42, .runtime_args = {...}};
@@ -35,8 +36,7 @@ namespace pub_sub_open_dds {
 class Service {
 public:
   // Default constructor uses the production OpenDDS runtime. Tests pass
-  // make_in_memory_runtime() (or a hand-rolled IRuntime) to substitute a
-  // fake transport.
+  // a hand-rolled IRuntime test double to substitute transport behavior.
   Service();
   explicit Service(std::shared_ptr<IRuntime> runtime);
   ~Service();

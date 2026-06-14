@@ -77,8 +77,8 @@ struct TopicConfig::Impl {
 
   // Cheap façade-side mirror of the headline QoS dimensions in the
   // resolved DDS struct. Carried inside WriterQos/ReaderQos for
-  // diagnostics and for the InMemoryRuntime (which ignores the opaque
-  // raw payload). Not used by the OpenDDS runtime — it consumes `raw()`
+  // diagnostics and for runtime test doubles (which often ignore the
+  // opaque raw payload). Not used by the OpenDDS runtime — it consumes `raw()`
   // directly.
   static QosProfile profile_from(const DDS::DataWriterQos& qos,
                                   const std::string& name) {

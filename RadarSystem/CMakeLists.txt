@@ -4,8 +4,7 @@
 
 # ---- IDL ------------------------------------------------------------------
 # `radar_idl` is defined in its own subdir next to the .idl files
-# (HANDOFF §5 gotcha #1) and exports the generated headers via
-# target_include_directories.
+# so the generated headers and include roots stay local to this IDL target.
 add_subdirectory(idl)
 
 # Convenience list of every @topic struct in the radar IDL. Both apps need

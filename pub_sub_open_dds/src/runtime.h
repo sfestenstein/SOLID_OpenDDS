@@ -29,6 +29,5 @@ public:
 };
 
 std::shared_ptr<IRuntime> make_opendds_runtime();
-std::shared_ptr<IRuntime> make_in_memory_runtime();
 
 } // namespace pub_sub_open_dds

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include "pub_sub_open_dds/detail/registry.h"
+#include "registry.h"
 
 #include <mutex>
 #include <unordered_map>

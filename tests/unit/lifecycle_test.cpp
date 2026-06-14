@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Lifecycle state-machine test. Drives Service against a tiny no-op
-// IRuntime so the lifecycle assertions don't depend on OpenDDS or on the
-// in-memory bus.
-//
-// Framework-less: each `expect_*` helper exits non-zero on failure so
-// CTest catches it; success prints a single PASS line.
+// Lifecycle state-machine test. Drives Service against a MockRuntime so
+// assertions target runtime call count/order without depending on OpenDDS.
 
-#include "pub_sub_open_dds/runtime.h"
+#include "runtime.h"
 #include "pub_sub_open_dds/service.h"
 #include "pub_sub_open_dds/topic_config.h"
 
-#include <cstdlib>
-#include <iostream>
-#include <stdexcept>
-#include <string>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 namespace pso = pub_sub_open_dds;
 
-namespace {
+using ::testing::_;
+using ::testing::InSequence;
 
-// No-op runtime that records lifecycle calls so we can assert ordering.
-class RecordingRuntime final : public pso::IRuntime {
+// ---------------------------------------------------------------------------
+// Mock runtime
+// ---------------------------------------------------------------------------
+
+class MockRuntime : public pso::IRuntime {
 public:
-  int init_calls = 0, activate_calls = 0, shutdown_calls = 0;
-
-  void init(const pso::ServiceConfig&) override { ++init_calls; }
-  void activate() override                       { ++activate_calls; }
-  void shutdown() override                       { ++shutdown_calls; }
+  // GMock tracks the three lifecycle transition calls — that's what these
+  // tests care about. create_writer/create_reader are never invoked by
+  // lifecycle tests, so plain stubs avoid pulling TypeAdapter/QoS types
+  // into GTest's printer-instantiation path (which GTest 1.8 does eagerly).
+  MOCK_METHOD1(init,     void(const pso::ServiceConfig&));
+  MOCK_METHOD0(activate, void());
+  MOCK_METHOD0(shutdown, void());
 
   std::shared_ptr<pso::detail::TypedWriterBinding> create_writer(
       const std::string&, const pso::detail::TypeAdapter&,
@@ -38,101 +38,94 @@ public:
       const pso::ReaderQos&) override { return nullptr; }
 };
 
-void fail(const std::string& msg) {
-  std::cerr << "lifecycle_test FAIL: " << msg << "\n";
-  std::exit(2);
-}
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
-#define EXPECT(cond) do { if (!(cond)) fail(std::string(__FILE__ ":") + std::to_string(__LINE__) + " expected " #cond); } while (0)
-
-template <class F>
-bool throws_error(F&& f) {
-  try { f(); }
-  catch (const std::runtime_error&) { return true; }
-  catch (...) { return false; }
-  return false;
-}
-
-} // namespace
-
-int main() {
-  // ---- happy path lifecycle ---------------------------------------------
+TEST(LifecycleTest, HappyPathCallsRuntimeInOrder) {
+  auto rt = std::make_shared<MockRuntime>();
   {
-    auto rt = std::make_shared<RecordingRuntime>();
-    pso::Service svc(rt);
-    EXPECT(svc.state() == pso::LifecycleState::Created);
+    InSequence seq;
+    EXPECT_CALL(*rt, init(_)).Times(1);
+    EXPECT_CALL(*rt, activate()).Times(1);
+    EXPECT_CALL(*rt, shutdown()).Times(1);
+  }
 
+  pso::Service svc(rt);
+  EXPECT_EQ(svc.state(), pso::LifecycleState::Created);
+
+  svc.pre_activate({});
+  EXPECT_EQ(svc.state(), pso::LifecycleState::PreActivated);
+
+  svc.post_activate();
+  EXPECT_EQ(svc.state(), pso::LifecycleState::PostActivated);
+
+  svc.deactivate();
+  EXPECT_EQ(svc.state(), pso::LifecycleState::Deactivated);
+}
+
+TEST(LifecycleTest, OutOfOrderOperationsThrow) {
+  auto rt = std::make_shared<MockRuntime>();
+  EXPECT_CALL(*rt, init(_)).Times(1);
+  EXPECT_CALL(*rt, activate()).Times(1);
+  EXPECT_CALL(*rt, shutdown()).Times(1);
+
+  pso::Service svc(rt);
+  EXPECT_THROW(svc.post_activate(), std::runtime_error);
+
+  svc.pre_activate({});
+  EXPECT_THROW(svc.pre_activate({}), std::runtime_error);
+
+  svc.post_activate();
+  EXPECT_THROW(svc.post_activate(), std::runtime_error);
+  EXPECT_THROW(svc.pre_activate({}), std::runtime_error);
+}
+
+TEST(LifecycleTest, DestructorCallsShutdown) {
+  auto rt = std::make_shared<MockRuntime>();
+  EXPECT_CALL(*rt, init(_)).Times(1);
+  EXPECT_CALL(*rt, activate()).Times(1);
+  EXPECT_CALL(*rt, shutdown()).Times(1);
+  {
+    pso::Service svc(rt);
     svc.pre_activate({});
-    EXPECT(svc.state() == pso::LifecycleState::PreActivated);
-    EXPECT(rt->init_calls == 1);
-
     svc.post_activate();
-    EXPECT(svc.state() == pso::LifecycleState::PostActivated);
-    EXPECT(rt->activate_calls == 1);
-
-    svc.deactivate();
-    EXPECT(svc.state() == pso::LifecycleState::Deactivated);
-    EXPECT(rt->shutdown_calls == 1);
+    // no explicit deactivate — destructor must call it
   }
-
-  // ---- out-of-order operations throw ------------------------------------
-  {
-    auto rt = std::make_shared<RecordingRuntime>();
-    pso::Service svc(rt);
-    EXPECT(throws_error([&]{ svc.post_activate(); }));
-    svc.pre_activate({});
-    EXPECT(throws_error([&]{ svc.pre_activate({}); }));
-    svc.post_activate();
-    EXPECT(throws_error([&]{ svc.post_activate(); }));
-    EXPECT(throws_error([&]{ svc.pre_activate({}); }));
-  }
-
-  // ---- destructor calls deactivate even if user forgot ------------------
-  {
-    auto rt = std::make_shared<RecordingRuntime>();
-    {
-      pso::Service svc(rt);
-      svc.pre_activate({});
-      svc.post_activate();
-      // no explicit deactivate — destructor handles it
-    }
-    EXPECT(rt->shutdown_calls == 1);
-  }
-
-  // ---- deactivate from Created is a no-op (and transitions terminally) --
-  {
-    auto rt = std::make_shared<RecordingRuntime>();
-    pso::Service svc(rt);
-    svc.deactivate();
-    EXPECT(svc.state() == pso::LifecycleState::Deactivated);
-    EXPECT(rt->init_calls == 0);
-    EXPECT(rt->shutdown_calls == 0);
-  }
-
-  // ---- subscribing with an unknown user type throws a clear runtime_error --
-  {
-    struct UnregisteredType {};
-    auto rt = std::make_shared<RecordingRuntime>();
-    pso::Service svc(rt);
-    auto topic_cfg = pso::TopicConfig::load_from_string("nope = reliable\n");
-    svc.pre_activate({}, std::move(topic_cfg));
-    try {
-      svc.subscribe<UnregisteredType>(
-          "nope",
-          [](const UnregisteredType&) {});
-      fail("subscribe of unregistered type did not throw");
-    } catch (const std::runtime_error& e) {
-      const std::string msg = e.what();
-      EXPECT(msg.find("no TypeAdapter") != std::string::npos);
-      EXPECT(msg.find("pub_sub_open_dds_generate_bindings") != std::string::npos);
-    }
-  }
-
-  // ---- null runtime is rejected ----------------------------------------
-  {
-    EXPECT(throws_error([]{ pso::Service svc(nullptr); }));
-  }
-
-  std::cout << "lifecycle_test PASS\n";
-  return 0;
 }
+
+TEST(LifecycleTest, DeactivateFromCreatedIsNoOp) {
+  auto rt = std::make_shared<MockRuntime>();
+  EXPECT_CALL(*rt, init(_)).Times(0);
+  EXPECT_CALL(*rt, shutdown()).Times(0);
+
+  pso::Service svc(rt);
+  svc.deactivate();
+  EXPECT_EQ(svc.state(), pso::LifecycleState::Deactivated);
+}
+
+TEST(LifecycleTest, SubscribeUnregisteredTypeGivesClearError) {
+  struct UnregisteredType {};
+
+  auto rt = std::make_shared<MockRuntime>();
+  EXPECT_CALL(*rt, init(_)).Times(1);
+  EXPECT_CALL(*rt, shutdown()).Times(1);
+
+  pso::Service svc(rt);
+  auto topic_cfg = pso::TopicConfig::load_from_string("nope = reliable\n");
+  svc.pre_activate({}, std::move(topic_cfg));
+
+  try {
+    svc.subscribe<UnregisteredType>("nope", [](const UnregisteredType&) {});
+    FAIL() << "Expected std::runtime_error for unregistered type";
+  } catch (const std::runtime_error& e) {
+    const std::string msg = e.what();
+    EXPECT_NE(msg.find("no TypeAdapter"), std::string::npos);
+    EXPECT_NE(msg.find("pub_sub_open_dds_generate_bindings"), std::string::npos);
+  }
+}
+
+TEST(LifecycleTest, NullRuntimeIsRejected) {
+  EXPECT_THROW(pso::Service svc(nullptr), std::runtime_error);
+}
+

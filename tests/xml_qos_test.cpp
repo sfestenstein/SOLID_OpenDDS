@@ -19,7 +19,7 @@
 // `-DCPSConfigFile rtps.ini` for transport init.
 
 #include "pub_sub_open_dds/qos.h"
-#include "pub_sub_open_dds/runtime.h"
+#include "runtime.h"
 #include "pub_sub_open_dds/service.h"
 #include "pub_sub_open_dds/topic_config.h"
 

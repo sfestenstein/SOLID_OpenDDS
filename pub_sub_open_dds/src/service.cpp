@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "pub_sub_open_dds/service.h"
 
-#include "pub_sub_open_dds/runtime.h"
+#include "runtime.h"
 #include "pub_sub_open_dds/topic_config.h"
 
 #include <sstream>

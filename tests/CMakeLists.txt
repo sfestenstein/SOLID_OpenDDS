@@ -1,19 +1,35 @@
 # Tests for pub_sub_open_dds:
 #   * smoke_roundtrip_opendds   — full RTPS round-trip on domain 42.
-#   * smoke_roundtrip_inmemory  — same test driver, in-memory runtime.
-#   * lifecycle_test            — Service state machine, no runtime.
+#   * lifecycle_test            — Service state machine; uses GTest + GMock.
 #   * qos_profile_test          — built-in QoS profile field values.
 #   * topic_config_test         — INI parser via load_from_string.
-#   * in_memory_roundtrip_test  — end-to-end via in-memory runtime.
+
+# ---- Google Test / Mock ---------------------------------------------------
+# Use the googletest source tree bundled with OpenDDS rather than a separate
+# install. INSTALL_GTEST=OFF keeps its install() rules from polluting ours.
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+set(INSTALL_GMOCK OFF CACHE BOOL "" FORCE)
+add_subdirectory(
+  /opt/OpenDDS/tests/googletest
+  ${CMAKE_CURRENT_BINARY_DIR}/googletest
+  EXCLUDE_FROM_ALL
+)
+# GTest 1.8.2 has a -Wmaybe-uninitialized in its own source that triggers
+# -Werror; suppress all warnings on the bundled targets to keep our build clean.
+foreach(_gt_target gtest gtest_main gmock gmock_main)
+  if(TARGET ${_gt_target})
+    target_compile_options(${_gt_target} PRIVATE -w)
+  endif()
+endforeach()
 
 # ---- IDL ------------------------------------------------------------------
 # Test-local IDL with one trivial `Smoke::Ping` type. Lives in its own
-# subdirectory next to the .idl file (HANDOFF §5 gotcha #1).
+# subdirectory next to the .idl file so OpenDDS-generated includes stay local
+# and do not pick up duplicate include roots.
 add_subdirectory(idl)
 
 # ---- smoke_roundtrip ------------------------------------------------------
-# Same test source compiled into one executable that takes the runtime as
-# its first positional argument. Both CTest entries point at this binary.
+# OpenDDS round-trip smoke test.
 add_executable(smoke_roundtrip smoke_roundtrip.cpp)
 target_link_libraries(smoke_roundtrip PRIVATE pub_sub_open_dds_test_support)
 pub_sub_open_dds_generate_bindings(
@@ -29,33 +45,20 @@ configure_file(
   COPYONLY
 )
 add_test(NAME smoke_roundtrip_opendds
-         COMMAND smoke_roundtrip opendds
+         COMMAND smoke_roundtrip
                  -DCPSConfigFile ${CMAKE_CURRENT_BINARY_DIR}/rtps.ini
          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set_tests_properties(smoke_roundtrip_opendds PROPERTIES TIMEOUT 60)
 
-add_test(NAME smoke_roundtrip_inmemory
-         COMMAND smoke_roundtrip inmemory)
-set_tests_properties(smoke_roundtrip_inmemory PROPERTIES TIMEOUT 10)
-
-# ---- in_memory_roundtrip_test --------------------------------------------
-# Same generated bindings as smoke_roundtrip, but exercises additional
-# scenarios (HANDOFF §6 keepalive regression, durability, pre-activate
-# guards).
-add_executable(in_memory_roundtrip_test unit/in_memory_roundtrip_test.cpp)
-target_link_libraries(in_memory_roundtrip_test PRIVATE pub_sub_open_dds_test_support)
-pub_sub_open_dds_generate_bindings(
-  TARGET     in_memory_roundtrip_test
-  IDL_TARGET smoke_idl
-  TYPES      Smoke::Ping
-)
-add_test(NAME in_memory_roundtrip_test COMMAND in_memory_roundtrip_test)
-set_tests_properties(in_memory_roundtrip_test PROPERTIES TIMEOUT 10)
-
 # ---- pure unit tests (no IDL needed) -------------------------------------
-add_executable(lifecycle_test    unit/lifecycle_test.cpp)
-target_link_libraries(lifecycle_test    PRIVATE pub_sub_open_dds_test_support)
-add_test(NAME lifecycle_test    COMMAND lifecycle_test)
+add_executable(lifecycle_test unit/lifecycle_test.cpp)
+target_link_libraries(lifecycle_test PRIVATE
+  pub_sub_open_dds_test_support
+  gmock
+  gtest
+  gtest_main
+)
+add_test(NAME lifecycle_test COMMAND lifecycle_test)
 set_tests_properties(lifecycle_test PROPERTIES TIMEOUT 10)
 
 add_executable(qos_profile_test  unit/qos_profile_test.cpp)

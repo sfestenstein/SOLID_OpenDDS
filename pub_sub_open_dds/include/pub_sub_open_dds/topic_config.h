@@ -29,13 +29,14 @@ namespace pub_sub_open_dds {
 // inside topic_config.cpp.
 class TopicConfig {
 public:
-  // Load topic bindings from a file. Throws std::runtime_error on I/O or parse failure.
+  // Load topic bindings from a file. Throws std::runtime_error on I/O or
+  // parse failure.
   static TopicConfig load_from_file(const std::string& path);
 
   // Load topic bindings from an in-memory string with the same INI syntax.
   // Useful for tests that don't want to drop a file on disk. Throws
-  // std::runtime_error on
-  // parse failure; the second argument is used only for error messages.
+  // std::runtime_error on parse failure; the second argument is used only
+  // for error messages.
   static TopicConfig load_from_string(const std::string& contents,
                                       const std::string& source_label = "<string>");
 

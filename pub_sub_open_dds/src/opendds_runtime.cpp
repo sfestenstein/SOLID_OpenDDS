@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // OpenDDS implementation of IRuntime. Plus the QoS / return-code
-// translation helpers declared in pub_sub_open_dds/detail/opendds_bindings.h
+// translation helpers declared in opendds_bindings.h
 // (kept here so QoS translation has a single home).
 //
 // Per-type work (TypeSupport registration, typed DataWriter/DataReader
@@ -10,11 +10,11 @@
 // publisher, subscriber, and the topic dedup table, then hands the typed
 // pointers (as void*) back to the adapter via TypeAdapter::make_opendds_*.
 
-#include "pub_sub_open_dds/runtime.h"
+#include "runtime.h"
 
-#include "pub_sub_open_dds/detail/data_adapter.h"
-#include "pub_sub_open_dds/detail/opendds_bindings.h"
-#include "pub_sub_open_dds/detail/typed_binding.h"
+#include "data_adapter.h"
+#include "opendds_bindings.h"
+#include "typed_binding.h"
 #include "pub_sub_open_dds/qos.h"
 
 #include <dds/DCPS/Marked_Default_Qos.h>
@@ -38,7 +38,7 @@ namespace pub_sub_open_dds {
 
 namespace detail {
 
-// ---- QoS translation: façade -> OpenDDS --------------------------------
+// ---- QoS translation: facade -> OpenDDS --------------------------------
 
 namespace {
 
