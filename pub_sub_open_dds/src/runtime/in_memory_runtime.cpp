@@ -29,13 +29,13 @@
 
 #include "pub_sub_open_dds/detail/data_adapter.h"
 #include "pub_sub_open_dds/detail/typed_binding.h"
-#include "pub_sub_open_dds/error.h"
 #include "pub_sub_open_dds/qos.h"
 
 #include <algorithm>
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -250,8 +250,8 @@ private:
 
   void require(State expected, const char* op) {
     if (state_ != expected) {
-      throw Error(std::string("InMemoryRuntime: cannot ") + op
-                  + " from state " + std::to_string(static_cast<int>(state_)));
+      throw std::runtime_error(std::string("InMemoryRuntime: cannot ") + op
+                               + " from state " + std::to_string(static_cast<int>(state_)));
     }
   }
 
@@ -261,10 +261,10 @@ private:
     auto it = buses_.find(topic);
     if (it != buses_.end()) {
       if (it->second->type_name != type_name) {
-        throw Error("InMemoryRuntime: topic '" + topic
-                    + "' already registered with type '"
-                    + it->second->type_name
-                    + "', cannot reuse for type '" + type_name + "'");
+        throw std::runtime_error("InMemoryRuntime: topic '" + topic
+                                 + "' already registered with type '"
+                                 + it->second->type_name
+                                 + "', cannot reuse for type '" + type_name + "'");
       }
       return it->second;
     }

@@ -29,11 +29,12 @@ namespace pub_sub_open_dds {
 // inside topic_config.cpp.
 class TopicConfig {
 public:
-  // Load topic bindings from a file. Throws Error on I/O or parse failure.
+  // Load topic bindings from a file. Throws std::runtime_error on I/O or parse failure.
   static TopicConfig load_from_file(const std::string& path);
 
   // Load topic bindings from an in-memory string with the same INI syntax.
-  // Useful for tests that don't want to drop a file on disk. Throws on
+  // Useful for tests that don't want to drop a file on disk. Throws
+  // std::runtime_error on
   // parse failure; the second argument is used only for error messages.
   static TopicConfig load_from_string(const std::string& contents,
                                       const std::string& source_label = "<string>");
@@ -42,7 +43,7 @@ public:
   // bindings. Path may omit the `.xml` suffix. Optional — a TopicConfig
   // with no XML file still works for any binding that uses a built-in
   // profile name. Calling this more than once replaces the prior loader.
-  // Throws Error on parse failure.
+  // Throws std::runtime_error on parse failure.
   void use_xml_qos_file(const std::string& path);
 
   // Resolve `topic` to a writer/reader QoS. Falls back to

@@ -27,7 +27,7 @@ enum class WriteResult {
 };
 
 // Where a Service sits in its lifecycle. Out-of-order operations throw
-// pub_sub_open_dds::Error.
+// std::runtime_error.
 enum class LifecycleState {
   Created,        // constructed, no runtime resources yet
   PreActivated,   // runtime initialised; registrations allowed
@@ -36,7 +36,6 @@ enum class LifecycleState {
   Deactivated,    // resources torn down; terminal state
 };
 
-class Error;
 class Service;
 struct ServiceConfig;
 struct QosProfile;

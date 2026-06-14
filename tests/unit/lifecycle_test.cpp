@@ -47,7 +47,7 @@ void fail(const std::string& msg) {
 template <class F>
 bool throws_error(F&& f) {
   try { f(); }
-  catch (const pso::Error&) { return true; }
+  catch (const std::runtime_error&) { return true; }
   catch (...) { return false; }
   return false;
 }
@@ -113,7 +113,7 @@ int main() {
     EXPECT(rt->shutdown_calls == 0);
   }
 
-  // ---- registering for an unknown user type throws a clear Error --------
+  // ---- registering for an unknown user type throws a clear runtime_error --
   {
     struct UnregisteredType {};
     auto rt = std::make_shared<RecordingRuntime>();
@@ -122,7 +122,7 @@ int main() {
     try {
       svc.register_publisher<UnregisteredType>("nope");
       fail("register_publisher of unregistered type did not throw");
-    } catch (const pso::Error& e) {
+    } catch (const std::runtime_error& e) {
       const std::string msg = e.what();
       EXPECT(msg.find("no TypeAdapter") != std::string::npos);
       EXPECT(msg.find("pub_sub_open_dds_generate_bindings") != std::string::npos);

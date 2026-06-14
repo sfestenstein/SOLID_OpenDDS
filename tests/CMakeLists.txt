@@ -72,18 +72,21 @@ set_tests_properties(topic_config_test PROPERTIES TIMEOUT 10)
 # ---- xml_qos_test --------------------------------------------------------
 # Regression test for the bug where TopicConfig::{writer,reader}_qos_for
 # returned uninitialised QoS fields when the binding used `xml:<profile>`,
-# breaking reader/writer matching for any XML-bound topic. Uses the real
-# OpenDDS XML loader, so it needs the OpenDDS env (CTest passes rtps.ini).
-configure_file(
-  ${CMAKE_SOURCE_DIR}/RadarSystem/config/radar_qos.xml
-  ${CMAKE_CURRENT_BINARY_DIR}/radar_qos.xml
-  COPYONLY
-)
-add_executable(xml_qos_test xml_qos_test.cpp)
-target_include_directories(xml_qos_test PRIVATE ${CMAKE_SOURCE_DIR}/pub_sub_open_dds/src)
-target_link_libraries(xml_qos_test PRIVATE pub_sub_open_dds)
-add_test(NAME xml_qos_test
-         COMMAND xml_qos_test
-                 -DCPSConfigFile ${CMAKE_CURRENT_BINARY_DIR}/rtps.ini
-         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-set_tests_properties(xml_qos_test PROPERTIES TIMEOUT 30)
+# breaking reader/writer matching for any XML-bound topic.
+if(TARGET OpenDDS::QOS_XML_XSC_Handler)
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/RadarSystem/config/radar_qos.xml
+    ${CMAKE_CURRENT_BINARY_DIR}/radar_qos.xml
+    COPYONLY
+  )
+  add_executable(xml_qos_test xml_qos_test.cpp)
+  target_include_directories(xml_qos_test PRIVATE ${CMAKE_SOURCE_DIR}/pub_sub_open_dds/src)
+  target_link_libraries(xml_qos_test PRIVATE pub_sub_open_dds)
+  add_test(NAME xml_qos_test
+           COMMAND xml_qos_test
+                   -DCPSConfigFile ${CMAKE_CURRENT_BINARY_DIR}/rtps.ini
+           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  set_tests_properties(xml_qos_test PROPERTIES TIMEOUT 30)
+else()
+  message(STATUS "Skipping xml_qos_test because OpenDDS::QOS_XML_XSC_Handler is unavailable")
+endif()

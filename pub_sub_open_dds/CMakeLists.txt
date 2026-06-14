@@ -7,7 +7,6 @@
 
 set(_pub_sub_open_dds_public_headers
   include/pub_sub_open_dds/fwd.h
-  include/pub_sub_open_dds/error.h
   include/pub_sub_open_dds/service_config.h
   include/pub_sub_open_dds/qos.h
   include/pub_sub_open_dds/service.h
@@ -42,13 +41,18 @@ target_link_libraries(pub_sub_open_dds
     OpenDDS::Dcps
     OpenDDS::Rtps
     OpenDDS::Rtps_Udp
-  PRIVATE
-    # XML QoS profile loader, used only from topic_config.cpp.
-    OpenDDS::QOS_XML_XSC_Handler
 )
 
+if(TARGET OpenDDS::QOS_XML_XSC_Handler)
+  target_link_libraries(pub_sub_open_dds PRIVATE OpenDDS::QOS_XML_XSC_Handler)
+  target_compile_definitions(pub_sub_open_dds PRIVATE PUB_SUB_OPEN_DDS_HAS_XML_QOS=1)
+else()
+  message(WARNING "OpenDDS::QOS_XML_XSC_Handler is unavailable; XML QoS loading will be disabled")
+  target_compile_definitions(pub_sub_open_dds PRIVATE PUB_SUB_OPEN_DDS_HAS_XML_QOS=0)
+endif()
+
 set_target_properties(pub_sub_open_dds PROPERTIES
-  CXX_STANDARD 17
+  CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF
 )

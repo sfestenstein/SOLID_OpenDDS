@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "pub_sub_open_dds/topic_config.h"
 
-#include "pub_sub_open_dds/error.h"
-
-#include <dds/DCPS/QOS_XML_Handler/QOS_XML_Loader.h>
 #include <dds/DCPS/Service_Participant.h>
 #include <dds/DdsDcpsPublicationC.h>
 #include <dds/DdsDcpsSubscriptionC.h>
 
+#if PUB_SUB_OPEN_DDS_HAS_XML_QOS
+#include <dds/DCPS/QOS_XML_Handler/QOS_XML_Loader.h>
 #include <ace/SString.h>
+#endif
 
 #include <algorithm>
 #include <cctype>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 namespace pub_sub_open_dds {
@@ -25,7 +26,9 @@ namespace pub_sub_open_dds {
 // only OpenDDS-specific piece in this file; the rest is INI parsing and
 // QoS-name resolution against the built-in profile table.
 struct TopicConfig::Impl {
+#if PUB_SUB_OPEN_DDS_HAS_XML_QOS
   std::unique_ptr<OpenDDS::DCPS::QOS_XML_Loader> loader;
+#endif
   std::string                                     base_name;  // for diagnostics
 
   // Resolve the named profile's writer QoS into a fully-populated
@@ -45,6 +48,7 @@ struct TopicConfig::Impl {
   // gives us the canonical DDS defaults (DURATION_INFINITE for deadline,
   // UNLIMITED resource limits, AUTOMATIC liveliness, etc.) so anything
   // the XML doesn't mention stays sensible.
+#if PUB_SUB_OPEN_DDS_HAS_XML_QOS
   std::shared_ptr<DDS::DataWriterQos> writer_qos(const std::string& profile,
                                                   const std::string& topic) {
     if (!loader) return nullptr;
@@ -97,6 +101,7 @@ struct TopicConfig::Impl {
     if (!p.keep_all) p.history_depth = qos.history.depth;
     return p;
   }
+#endif
 };
 
 // ---- helpers -----------------------------------------------------------
@@ -123,7 +128,7 @@ std::string strip_xml_extension(std::string s) {
 }
 
 bool starts_with_xml_prefix(const std::string& s) {
-  static constexpr const char* kPrefix = "xml:";
+  static const char* kPrefix = "xml:";
   if (s.size() <= 4) return false;
   return std::equal(s.begin(), s.begin() + 4, kPrefix,
                     [](unsigned char a, unsigned char b) {
@@ -145,16 +150,16 @@ void parse_bindings(std::istream& in,
     if (s.empty()) continue;
     const auto eq = s.find('=');
     if (eq == std::string::npos) {
-      throw Error("TopicConfig: " + source_label + ":"
-                  + std::to_string(lineno)
-                  + ": expected '<topic> = <profile>'");
+      throw std::runtime_error("TopicConfig: " + source_label + ":"
+                               + std::to_string(lineno)
+                               + ": expected '<topic> = <profile>'");
     }
     std::string topic   = trim(s.substr(0, eq));
     std::string profile = trim(s.substr(eq + 1));
     if (topic.empty() || profile.empty()) {
-      throw Error("TopicConfig: " + source_label + ":"
-                  + std::to_string(lineno)
-                  + ": empty topic or profile name");
+      throw std::runtime_error("TopicConfig: " + source_label + ":"
+                               + std::to_string(lineno)
+                               + ": empty topic or profile name");
     }
     out[std::move(topic)] = std::move(profile);
   }
@@ -172,7 +177,7 @@ TopicConfig& TopicConfig::operator=(TopicConfig&&) noexcept = default;
 TopicConfig TopicConfig::load_from_file(const std::string& path) {
   std::ifstream in(path);
   if (!in) {
-    throw Error("TopicConfig: cannot open '" + path + "'");
+    throw std::runtime_error("TopicConfig: cannot open '" + path + "'");
   }
   TopicConfig cfg;
   parse_bindings(in, path, cfg.bindings_);
@@ -188,6 +193,7 @@ TopicConfig TopicConfig::load_from_string(const std::string& contents,
 }
 
 void TopicConfig::use_xml_qos_file(const std::string& path) {
+#if PUB_SUB_OPEN_DDS_HAS_XML_QOS
   auto loader = std::unique_ptr<OpenDDS::DCPS::QOS_XML_Loader>(
       new OpenDDS::DCPS::QOS_XML_Loader());
   auto basename = strip_xml_extension(path);
@@ -199,12 +205,18 @@ void TopicConfig::use_xml_qos_file(const std::string& path) {
   const ACE_TString seed = ACE_TString((basename + "#pubsubopenddsseed").c_str());
   const DDS::ReturnCode_t rc = loader->init(seed.c_str());
   if (rc != DDS::RETCODE_OK) {
-    throw Error("TopicConfig: failed to parse XML QoS file '" + path
-                + "' (OpenDDS rc=" + std::to_string(rc) + ")");
+    throw std::runtime_error("TopicConfig: failed to parse XML QoS file '" + path
+                             + "' (OpenDDS rc=" + std::to_string(rc) + ")");
   }
-  if (!impl_) impl_ = std::make_unique<Impl>();
+  if (!impl_) impl_.reset(new Impl());
   impl_->loader    = std::move(loader);
   impl_->base_name = std::move(basename);
+#else
+  (void)path;
+  throw std::runtime_error(
+      "TopicConfig: XML QoS support is unavailable in this build "
+      "(OpenDDS::QOS_XML_XSC_Handler not found)");
+#endif
 }
 
 WriterQos TopicConfig::writer_qos_for(const std::string& topic,
@@ -214,13 +226,18 @@ WriterQos TopicConfig::writer_qos_for(const std::string& topic,
 
   const std::string& raw = it->second;
   if (starts_with_xml_prefix(raw)) {
-    if (!impl_ || !impl_->loader) {
+    if (!impl_
+#if PUB_SUB_OPEN_DDS_HAS_XML_QOS
+        || !impl_->loader
+#endif
+    ) {
       std::cerr << "pub_sub_open_dds: topic '" << topic
                 << "' bound to '" << raw
                 << "' but no XML QoS file has been loaded; falling back to '"
                 << default_profile.name << "'\n";
       return make_writer_qos(default_profile);
     }
+  #if PUB_SUB_OPEN_DDS_HAS_XML_QOS
     const std::string profile_name = raw.substr(4);
     auto resolved = impl_->writer_qos(profile_name, topic);
     if (!resolved) {
@@ -235,6 +252,9 @@ WriterQos TopicConfig::writer_qos_for(const std::string& topic,
     // shared_ptr<void> erases the DDS-specific type so qos.h stays clean.
     wq.attach_raw(std::static_pointer_cast<void>(resolved));
     return wq;
+  #else
+    return make_writer_qos(default_profile);
+  #endif
   }
 
   const QosProfile* p = find_builtin_profile(raw);
@@ -254,13 +274,18 @@ ReaderQos TopicConfig::reader_qos_for(const std::string& topic,
 
   const std::string& raw = it->second;
   if (starts_with_xml_prefix(raw)) {
-    if (!impl_ || !impl_->loader) {
+    if (!impl_
+#if PUB_SUB_OPEN_DDS_HAS_XML_QOS
+        || !impl_->loader
+#endif
+    ) {
       std::cerr << "pub_sub_open_dds: topic '" << topic
                 << "' bound to '" << raw
                 << "' but no XML QoS file has been loaded; falling back to '"
                 << default_profile.name << "'\n";
       return make_reader_qos(default_profile);
     }
+  #if PUB_SUB_OPEN_DDS_HAS_XML_QOS
     const std::string profile_name = raw.substr(4);
     auto resolved = impl_->reader_qos(profile_name, topic);
     if (!resolved) {
@@ -273,6 +298,9 @@ ReaderQos TopicConfig::reader_qos_for(const std::string& topic,
     ReaderQos rq(Impl::profile_from(*resolved, profile_name));
     rq.attach_raw(std::static_pointer_cast<void>(resolved));
     return rq;
+  #else
+    return make_reader_qos(default_profile);
+  #endif
   }
 
   const QosProfile* p = find_builtin_profile(raw);

@@ -26,7 +26,6 @@
 #include "pub_sub_open_dds/detail/opendds_bindings.h"
 #include "pub_sub_open_dds/detail/registry.h"
 #include "pub_sub_open_dds/detail/typed_binding.h"
-#include "pub_sub_open_dds/error.h"
 #include "pub_sub_open_dds/qos.h"
 
 #include <dds/DCPS/Marked_Default_Qos.h>
@@ -36,6 +35,7 @@
 
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <typeindex>
 
@@ -72,7 +72,7 @@ public:
     @PSO_GEN_NAMESPACE@::@PSO_GEN_TS_CLASS@_var ts(
         new @PSO_GEN_NAMESPACE@::@PSO_GEN_TS_IMPL_CLASS@);
     if (ts->register_type(participant, "") != DDS::RETCODE_OK) {
-      throw pub_sub_open_dds::Error(
+      throw std::runtime_error(
           std::string("register_type failed for '") + type_name() + "'");
     }
   }
@@ -98,15 +98,15 @@ public:
     DDS::DataWriter_var writer = publisher->create_datawriter(
         topic, dwqos, nullptr, OpenDDS::DCPS::DEFAULT_STATUS_MASK);
     if (!writer) {
-      throw pub_sub_open_dds::Error(
-          std::string("create_datawriter failed for '") + type_name() + "'");
+      throw std::runtime_error(
+        std::string("create_datawriter failed for '") + type_name() + "'");
     }
 
     @PSO_GEN_NAMESPACE@::@PSO_GEN_DW_CLASS@_var typed =
         @PSO_GEN_NAMESPACE@::@PSO_GEN_DW_CLASS@::_narrow(writer);
     if (!typed) {
-      throw pub_sub_open_dds::Error(
-          std::string("DataWriter narrow failed for '") + type_name() + "'");
+      throw std::runtime_error(
+        std::string("DataWriter narrow failed for '") + type_name() + "'");
     }
 
     // Keep the typed-narrowed writer alive for the binding's lifetime via
@@ -162,15 +162,15 @@ public:
     DDS::DataReader_var reader = subscriber->create_datareader(
         topic, drqos, listener, OpenDDS::DCPS::DEFAULT_STATUS_MASK);
     if (!reader) {
-      throw pub_sub_open_dds::Error(
-          std::string("create_datareader failed for '") + type_name() + "'");
+      throw std::runtime_error(
+        std::string("create_datareader failed for '") + type_name() + "'");
     }
 
     @PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@_var typed =
         @PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@::_narrow(reader);
     if (!typed) {
-      throw pub_sub_open_dds::Error(
-          std::string("DataReader narrow failed for '") + type_name() + "'");
+      throw std::runtime_error(
+        std::string("DataReader narrow failed for '") + type_name() + "'");
     }
     auto typed_keepalive = std::shared_ptr<void>(
         @PSO_GEN_NAMESPACE@::@PSO_GEN_DR_CLASS@::_duplicate(typed.in()),

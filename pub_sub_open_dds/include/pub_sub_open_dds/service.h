@@ -2,7 +2,6 @@
 #pragma once
 
 #include "pub_sub_open_dds/fwd.h"
-#include "pub_sub_open_dds/error.h"
 #include "pub_sub_open_dds/publisher.h"
 #include "pub_sub_open_dds/qos.h"
 #include "pub_sub_open_dds/runtime.h"
@@ -10,13 +9,14 @@
 #include "pub_sub_open_dds/subscriber.h"
 
 #include <memory>
+#include <stdexcept>
+#include <typeindex>
+#include <typeinfo>
 #include <unordered_set>
 #include <vector>
 
 namespace pub_sub_open_dds {
 
-#include <typeinfo>
-#include <typeindex>
 // Facade over a domain participant's lifecycle. Depends on `IRuntime`,
 // which lets the same Service instance be exercised against either the
 // real OpenDDS transport or the in-memory test fake.
@@ -150,13 +150,13 @@ void Service::register_publisher_impl(
     const char* type_name_for_diag) {
   require_state(LifecycleState::PreActivated, "register_publisher");
   if (!adapter) {
-    throw Error(std::string("no TypeAdapter registered for '")
-                + type_name_for_diag
-                + "' — did you forget pub_sub_open_dds_generate_bindings("
-                  "... TYPES <T>)?");
+    throw std::runtime_error(std::string("no TypeAdapter registered for '")
+                             + type_name_for_diag
+                             + "' — did you forget pub_sub_open_dds_generate_bindings("
+                               "... TYPES <T>)?");
   }
   if (registered_topics_.insert(topic_name + "::pub").second == false) {
-    throw Error("publisher already registered for topic '" + topic_name + "'");
+    throw std::runtime_error("publisher already registered for topic '" + topic_name + "'");
   }
   handle_keepalive_.push_back(handle);
   pending_.push_back(PendingRegistration{
@@ -175,13 +175,13 @@ void Service::register_subscriber_impl(
     const char* type_name_for_diag) {
   require_state(LifecycleState::PreActivated, "register_subscriber");
   if (!adapter) {
-    throw Error(std::string("no TypeAdapter registered for '")
-                + type_name_for_diag
-                + "' — did you forget pub_sub_open_dds_generate_bindings("
-                  "... TYPES <T>)?");
+    throw std::runtime_error(std::string("no TypeAdapter registered for '")
+                             + type_name_for_diag
+                             + "' — did you forget pub_sub_open_dds_generate_bindings("
+                               "... TYPES <T>)?");
   }
   if (registered_topics_.insert(topic_name + "::sub").second == false) {
-    throw Error("subscriber already registered for topic '" + topic_name + "'");
+    throw std::runtime_error("subscriber already registered for topic '" + topic_name + "'");
   }
   handle_keepalive_.push_back(handle);
   pending_.push_back(PendingRegistration{

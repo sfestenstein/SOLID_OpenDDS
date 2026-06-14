@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include "pub_sub_open_dds/error.h"
 #include "pub_sub_open_dds/fwd.h"
 #include "pub_sub_open_dds/qos.h"
 
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <typeindex>
 
@@ -20,21 +20,21 @@ struct TypeAdapter {
   virtual std::shared_ptr<void> clone(const void* sample) const = 0;
 
   virtual void register_with_opendds(void* /*participant*/) const {
-    throw Error(std::string("type adapter for '") + type_name()
-                + "' has no OpenDDS implementation linked");
+    throw std::runtime_error(std::string("type adapter for '") + type_name()
+                             + "' has no OpenDDS implementation linked");
   }
 
   virtual std::shared_ptr<TypedWriterBinding> make_opendds_writer(
       void* /*publisher*/, void* /*topic*/, const WriterQos& /*qos*/) const {
-    throw Error(std::string("type adapter for '") + type_name()
-                + "' has no OpenDDS writer implementation linked");
+    throw std::runtime_error(std::string("type adapter for '") + type_name()
+                             + "' has no OpenDDS writer implementation linked");
   }
 
   virtual std::shared_ptr<TypedReaderBinding> make_opendds_reader(
       void* /*subscriber*/, void* /*topic*/, const ReaderQos& /*qos*/,
       std::function<void(const void*)> /*on_sample*/) const {
-    throw Error(std::string("type adapter for '") + type_name()
-                + "' has no OpenDDS reader implementation linked");
+    throw std::runtime_error(std::string("type adapter for '") + type_name()
+                             + "' has no OpenDDS reader implementation linked");
   }
 };
 

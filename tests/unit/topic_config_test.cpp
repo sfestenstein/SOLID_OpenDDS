@@ -4,12 +4,12 @@
 // load_from_string so the test doesn't need to drop files on disk; checks
 // trim / comments / unknown-profile fallback / unbound-topic fallback.
 
-#include "pub_sub_open_dds/error.h"
 #include "pub_sub_open_dds/qos.h"
 #include "pub_sub_open_dds/topic_config.h"
 
 #include <cstdlib>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 namespace pso = pub_sub_open_dds;
@@ -26,7 +26,7 @@ void fail(const std::string& m) {
 template <class F>
 bool throws_error(F&& f) {
   try { f(); }
-  catch (const pso::Error&) { return true; }
+  catch (const std::runtime_error&) { return true; }
   catch (...) { return false; }
   return false;
 }

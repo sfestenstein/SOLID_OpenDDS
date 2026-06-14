@@ -15,7 +15,6 @@
 #include "pub_sub_open_dds/detail/data_adapter.h"
 #include "pub_sub_open_dds/detail/opendds_bindings.h"
 #include "pub_sub_open_dds/detail/typed_binding.h"
-#include "pub_sub_open_dds/error.h"
 #include "pub_sub_open_dds/qos.h"
 
 #include <dds/DCPS/Marked_Default_Qos.h>
@@ -29,6 +28,7 @@
 
 #include <chrono>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -163,7 +163,7 @@ public:
 
     factory_ = TheParticipantFactoryWithArgs(argc_, argv_.data());
     if (!factory_) {
-      throw Error("OpenDddsRuntime: TheParticipantFactoryWithArgs returned null");
+      throw std::runtime_error("OpenDddsRuntime: TheParticipantFactoryWithArgs returned null");
     }
     participant_ = factory_->create_participant(
         static_cast<DDS::DomainId_t>(cfg.domain_id),
@@ -171,21 +171,21 @@ public:
         nullptr,
         OpenDDS::DCPS::DEFAULT_STATUS_MASK);
     if (!participant_) {
-      throw Error("OpenDddsRuntime: create_participant failed");
+      throw std::runtime_error("OpenDddsRuntime: create_participant failed");
     }
   }
 
   void activate() override {
     if (!participant_) {
-      throw Error("OpenDddsRuntime: activate before init");
+      throw std::runtime_error("OpenDddsRuntime: activate before init");
     }
     publisher_ = participant_->create_publisher(
         PUBLISHER_QOS_DEFAULT, nullptr, OpenDDS::DCPS::DEFAULT_STATUS_MASK);
-    if (!publisher_) throw Error("OpenDddsRuntime: create_publisher failed");
+    if (!publisher_) throw std::runtime_error("OpenDddsRuntime: create_publisher failed");
 
     subscriber_ = participant_->create_subscriber(
         SUBSCRIBER_QOS_DEFAULT, nullptr, OpenDDS::DCPS::DEFAULT_STATUS_MASK);
-    if (!subscriber_) throw Error("OpenDddsRuntime: create_subscriber failed");
+    if (!subscriber_) throw std::runtime_error("OpenDddsRuntime: create_subscriber failed");
   }
 
   void shutdown() override {
@@ -213,7 +213,7 @@ public:
   std::shared_ptr<detail::TypedWriterBinding> create_writer(
       const std::string& topic, const detail::TypeAdapter& adapter,
       const WriterQos& qos) override {
-    if (!publisher_) throw Error("OpenDddsRuntime: create_writer before activate");
+    if (!publisher_) throw std::runtime_error("OpenDddsRuntime: create_writer before activate");
     register_type_once(adapter);
     DDS::Topic_var topic_var = get_or_create_topic(topic, adapter.type_name());
     auto b = adapter.make_opendds_writer(
@@ -221,9 +221,9 @@ public:
         static_cast<void*>(topic_var.in()),
         qos);
     if (!b) {
-      throw Error("OpenDddsRuntime: TypeAdapter for '"
-                  + std::string(adapter.type_name())
-                  + "' returned null writer binding");
+      throw std::runtime_error("OpenDddsRuntime: TypeAdapter for '"
+                               + std::string(adapter.type_name())
+                               + "' returned null writer binding");
     }
     return b;
   }
@@ -231,7 +231,7 @@ public:
   std::shared_ptr<detail::TypedReaderBinding> create_reader(
       const std::string& topic, const detail::TypeAdapter& adapter,
       const ReaderQos& qos) override {
-    if (!subscriber_) throw Error("OpenDddsRuntime: create_reader before activate");
+    if (!subscriber_) throw std::runtime_error("OpenDddsRuntime: create_reader before activate");
     register_type_once(adapter);
     DDS::Topic_var topic_var = get_or_create_topic(topic, adapter.type_name());
     auto b = adapter.make_opendds_reader(
@@ -240,9 +240,9 @@ public:
         qos,
         /*on_sample=*/{});  // Subscriber<T> installs the thunk after we return
     if (!b) {
-      throw Error("OpenDddsRuntime: TypeAdapter for '"
-                  + std::string(adapter.type_name())
-                  + "' returned null reader binding");
+      throw std::runtime_error("OpenDddsRuntime: TypeAdapter for '"
+                               + std::string(adapter.type_name())
+                               + "' returned null reader binding");
     }
     return b;
   }
@@ -252,9 +252,9 @@ private:
     arg_storage_.clear();
     argv_.clear();
     arg_storage_.push_back("pub_sub_open_dds");
-    if (cfg.config_file) {
+    if (!cfg.config_file.empty()) {
       arg_storage_.push_back("-DCPSConfigFile");
-      arg_storage_.push_back(cfg.config_file->string());
+      arg_storage_.push_back(cfg.config_file);
     }
     for (const auto& a : cfg.runtime_args) arg_storage_.push_back(a);
     argv_.reserve(arg_storage_.size() + 1);
@@ -275,9 +275,9 @@ private:
     if (it != topics_.end()) {
       const std::string& existing = topic_types_[topic_name];
       if (existing != type_name) {
-        throw Error("OpenDddsRuntime: topic '" + topic_name
-                    + "' already registered with type '" + existing
-                    + "', cannot reuse for type '" + type_name + "'");
+        throw std::runtime_error("OpenDddsRuntime: topic '" + topic_name
+                                 + "' already registered with type '" + existing
+                                 + "', cannot reuse for type '" + type_name + "'");
       }
       return it->second;
     }
@@ -288,7 +288,7 @@ private:
         nullptr,
         OpenDDS::DCPS::DEFAULT_STATUS_MASK);
     if (!topic) {
-      throw Error("OpenDddsRuntime: create_topic failed for '" + topic_name + "'");
+      throw std::runtime_error("OpenDddsRuntime: create_topic failed for '" + topic_name + "'");
     }
     topics_[topic_name]      = topic;
     topic_types_[topic_name] = type_name;

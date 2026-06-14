@@ -28,7 +28,9 @@
 #include <dds/DdsDcpsSubscriptionC.h>
 
 #include <cstdlib>
-#include <filesystem>
+#include <limits.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <iostream>
 #include <string>
 
@@ -52,6 +54,19 @@ void require_dds_env() {
   }
 }
 
+std::string cwd_string() {
+  char buf[PATH_MAX];
+  if (!getcwd(buf, sizeof(buf))) {
+    fail("getcwd failed");
+  }
+  return std::string(buf);
+}
+
+bool file_exists(const std::string& path) {
+  struct stat st;
+  return stat(path.c_str(), &st) == 0;
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -64,17 +79,17 @@ int main(int argc, char* argv[]) {
   for (int i = 1; i < argc; ++i) cfg.runtime_args.emplace_back(argv[i]);
   svc.pre_activate(cfg);
 
-  const std::filesystem::path xml_path =
-      std::filesystem::current_path() / "radar_qos.xml";
-  if (!std::filesystem::exists(xml_path)) {
+    const std::string cwd = cwd_string();
+    const std::string xml_path = cwd + "/radar_qos.xml";
+    if (!file_exists(xml_path)) {
     fail("radar_qos.xml not next to the test binary (cwd=" +
-         std::filesystem::current_path().string() + ")");
+      cwd + ")");
   }
 
   auto tc = pso::TopicConfig::load_from_string(
       "ComponentStatus = xml:ComponentStatusDurable\n"
       "RadarTrack      = xml:RadarTrackStreaming\n");
-  tc.use_xml_qos_file(xml_path.string());
+  tc.use_xml_qos_file(xml_path);
 
   // ---- ComponentStatus: RELIABLE + TRANSIENT_LOCAL + KEEP_LAST 10 -----
   {

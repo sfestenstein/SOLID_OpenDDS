@@ -4,6 +4,7 @@
 #include "pub_sub_open_dds/runtime.h"
 
 #include <sstream>
+#include <stdexcept>
 
 namespace pub_sub_open_dds {
 
@@ -12,7 +13,7 @@ Service::Service() : runtime_(make_opendds_runtime()) {}
 Service::Service(std::shared_ptr<IRuntime> runtime)
     : runtime_(std::move(runtime)) {
   if (!runtime_) {
-    throw Error("Service: runtime must be non-null");
+    throw std::runtime_error("Service: runtime must be non-null");
   }
 }
 
@@ -32,7 +33,7 @@ void Service::require_state(LifecycleState s, const char* op) {
     oss << "pub_sub_open_dds::Service: cannot call '" << op
         << "' from state " << static_cast<int>(state_)
         << " (expected " << static_cast<int>(s) << ")";
-    throw Error(oss.str());
+    throw std::runtime_error(oss.str());
   }
 }
 
