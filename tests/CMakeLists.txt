@@ -1,6 +1,7 @@
 # Tests for pub_sub_open_dds:
 #   * smoke_roundtrip_opendds   — full RTPS round-trip on domain 42.
 #   * lifecycle_test            — Service state machine; uses GTest + GMock.
+#   * service_bootstrap_config_test — bootstrap config parser validation.
 #   * qos_profile_test          — built-in QoS profile field values.
 #   * topic_config_test         — INI parser via load_from_string.
 
@@ -60,6 +61,11 @@ target_link_libraries(lifecycle_test PRIVATE
 )
 add_test(NAME lifecycle_test COMMAND lifecycle_test)
 set_tests_properties(lifecycle_test PROPERTIES TIMEOUT 10)
+
+add_executable(service_bootstrap_config_test unit/service_bootstrap_config_test.cpp)
+target_link_libraries(service_bootstrap_config_test PRIVATE pub_sub_open_dds)
+add_test(NAME service_bootstrap_config_test COMMAND service_bootstrap_config_test)
+set_tests_properties(service_bootstrap_config_test PROPERTIES TIMEOUT 10)
 
 add_executable(qos_profile_test  unit/qos_profile_test.cpp)
 target_link_libraries(qos_profile_test  PRIVATE pub_sub_open_dds)

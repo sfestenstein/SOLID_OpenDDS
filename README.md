@@ -62,8 +62,8 @@ Current tests:
 Two terminals, from `build/RadarSystem/`:
 
 ```bash
-./SensorApp      -DCPSConfigFile rtps.ini
-./WorkstationApp -DCPSConfigFile rtps.ini
+./SensorApp
+./WorkstationApp
 ```
 
 The workstation prints incoming heartbeats, radar tracks, and
@@ -161,12 +161,14 @@ pub_sub_open_dds_generate_bindings(
 int main(int argc, char* argv[]) {
   using namespace pub_sub_open_dds;
   Service svc;                                       // default: OpenDDS runtime
-  ServiceConfig cfg;
-  cfg.domain_id = 42;
-  for (int i = 1; i < argc; ++i)                     // e.g. -DCPSConfigFile rtps.ini
-    cfg.runtime_args.emplace_back(argv[i]);
-  auto topics = TopicConfig::load_from_string("greetings = reliable\n");
-  svc.pre_activate(cfg, std::move(topics));
+  auto boot = ServiceBootstrapConfig::load_from_string(R"(
+    domain_id = 42
+    config_file = rtps.ini
+    topic_config_file = greetings_topics.ini
+  )");
+  for (int i = 1; i < argc; ++i)                     // optional runtime overrides
+    boot.runtime_args.emplace_back(argv[i]);
+  svc.pre_activate(boot);
   svc.subscribe<MyMod::Greeting>(
       "greetings", [](const MyMod::Greeting& g) { /* ... */ });
   svc.post_activate();

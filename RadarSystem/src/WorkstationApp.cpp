@@ -32,7 +32,7 @@
 #include "pub_sub_open_dds_generated/OperatorChatPubSub.h"
 
 #include "pub_sub_open_dds/service.h"
-#include "pub_sub_open_dds/topic_config.h"
+#include "pub_sub_open_dds/service_bootstrap_config.h"
 
 #include <atomic>
 #include <chrono>
@@ -48,8 +48,7 @@ namespace {
 constexpr int     DOMAIN_ID         = 43;
 const std::string TARGET_SENSOR     = "sensor_alpha";
 const std::string OPERATOR_ID       = "ws_operator_1";
-const char* const TOPIC_CONFIG_PATH = "workstation_topics.ini";
-const char* const QOS_XML_PATH      = "radar_qos.xml";
+const char* const SERVICE_CONFIG_PATH = "workstation_service.ini";
 
 constexpr int IQ_LOG_EVERY = 40;
 
@@ -112,14 +111,16 @@ int main(int argc, char* argv[]) {
   std::signal(SIGINT, handle_sigint);
 
   try {
-    auto topic_cfg = TopicConfig::load_from_file(TOPIC_CONFIG_PATH);
-    topic_cfg.use_xml_qos_file(QOS_XML_PATH);
-
     Service svc;
-    ServiceConfig cfg;
-    cfg.domain_id = DOMAIN_ID;
+    ServiceBootstrapConfig cfg =
+        ServiceBootstrapConfig::load_from_file(SERVICE_CONFIG_PATH);
+    if (cfg.domain_id != DOMAIN_ID) {
+      std::lock_guard<std::mutex> lk(g_cout_mtx);
+      std::cout << "[ws] warning: expected domain " << DOMAIN_ID
+                << " but service config sets " << cfg.domain_id << "\n";
+    }
     for (int i = 1; i < argc; ++i) cfg.runtime_args.emplace_back(argv[i]);
-    svc.pre_activate(cfg, std::move(topic_cfg));
+    svc.pre_activate(cfg);
 
     svc.subscribe<RadarSystem::ComponentStatus>(
         "ComponentStatus",

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "pub_sub_open_dds/fwd.h"
+#include "pub_sub_open_dds/service_bootstrap_config.h"
 #include "pub_sub_open_dds/service_config.h"
 #include "pub_sub_open_dds/topic_config.h"
 
@@ -47,6 +48,8 @@ public:
   Service& operator=(Service&&)      = delete;
 
   // ---- lifecycle --------------------------------------------------------
+  void pre_activate(const ServiceBootstrapConfig& cfg);
+  void pre_activate_from_file(const std::string& config_path);
   void pre_activate(const ServiceConfig& cfg);
   void pre_activate(const ServiceConfig& cfg, TopicConfig topic_config);
   void post_activate();

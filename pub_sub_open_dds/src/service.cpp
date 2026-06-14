@@ -2,6 +2,7 @@
 #include "pub_sub_open_dds/service.h"
 
 #include "runtime.h"
+#include "pub_sub_open_dds/service_bootstrap_config.h"
 #include "pub_sub_open_dds/topic_config.h"
 
 #include <sstream>
@@ -43,6 +44,24 @@ void Service::pre_activate(const ServiceConfig& cfg) {
   config_ = cfg;
   runtime_->init(config_);
   state_ = LifecycleState::PreActivated;
+}
+
+void Service::pre_activate(const ServiceBootstrapConfig& cfg) {
+  ServiceConfig runtime_cfg;
+  runtime_cfg.domain_id    = cfg.domain_id;
+  runtime_cfg.runtime_args = cfg.runtime_args;
+  runtime_cfg.config_file  = cfg.config_file;
+
+  TopicConfig topic_cfg = TopicConfig::load_from_file(cfg.topic_config_file);
+  if (!cfg.qos_xml_file.empty()) {
+    topic_cfg.use_xml_qos_file(cfg.qos_xml_file);
+  }
+
+  pre_activate(runtime_cfg, std::move(topic_cfg));
+}
+
+void Service::pre_activate_from_file(const std::string& config_path) {
+  pre_activate(ServiceBootstrapConfig::load_from_file(config_path));
 }
 
 void Service::pre_activate(const ServiceConfig& cfg, TopicConfig topic_config) {

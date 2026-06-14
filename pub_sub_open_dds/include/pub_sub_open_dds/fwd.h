@@ -38,6 +38,7 @@ enum class LifecycleState {
 
 class Service;
 struct ServiceConfig;
+struct ServiceBootstrapConfig;
 struct QosProfile;
 class  WriterQos;
 class  ReaderQos;

@@ -58,6 +58,16 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/workstation_topics.ini
   COPYONLY
 )
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/config/sensor_service.ini
+  ${CMAKE_CURRENT_BINARY_DIR}/sensor_service.ini
+  COPYONLY
+)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/config/workstation_service.ini
+  ${CMAKE_CURRENT_BINARY_DIR}/workstation_service.ini
+  COPYONLY
+)
 # DDS-XML QoS profiles referenced by `xml:<profile>` entries in the topic
 # config files. Read by TopicConfig::use_xml_qos_file at startup.
 configure_file(

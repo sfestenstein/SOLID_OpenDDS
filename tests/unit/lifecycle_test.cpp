@@ -5,8 +5,11 @@
 
 #include "runtime.h"
 #include "pub_sub_open_dds/service.h"
+#include "pub_sub_open_dds/service_bootstrap_config.h"
 #include "pub_sub_open_dds/topic_config.h"
 
+#include <cstdio>
+#include <fstream>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -54,7 +57,7 @@ TEST(LifecycleTest, HappyPathCallsRuntimeInOrder) {
   pso::Service svc(rt);
   EXPECT_EQ(svc.state(), pso::LifecycleState::Created);
 
-  svc.pre_activate({});
+  svc.pre_activate(pso::ServiceConfig{});
   EXPECT_EQ(svc.state(), pso::LifecycleState::PreActivated);
 
   svc.post_activate();
@@ -73,12 +76,12 @@ TEST(LifecycleTest, OutOfOrderOperationsThrow) {
   pso::Service svc(rt);
   EXPECT_THROW(svc.post_activate(), std::runtime_error);
 
-  svc.pre_activate({});
-  EXPECT_THROW(svc.pre_activate({}), std::runtime_error);
+  svc.pre_activate(pso::ServiceConfig{});
+  EXPECT_THROW(svc.pre_activate(pso::ServiceConfig{}), std::runtime_error);
 
   svc.post_activate();
   EXPECT_THROW(svc.post_activate(), std::runtime_error);
-  EXPECT_THROW(svc.pre_activate({}), std::runtime_error);
+  EXPECT_THROW(svc.pre_activate(pso::ServiceConfig{}), std::runtime_error);
 }
 
 TEST(LifecycleTest, DestructorCallsShutdown) {
@@ -88,7 +91,7 @@ TEST(LifecycleTest, DestructorCallsShutdown) {
   EXPECT_CALL(*rt, shutdown()).Times(1);
   {
     pso::Service svc(rt);
-    svc.pre_activate({});
+    svc.pre_activate(pso::ServiceConfig{});
     svc.post_activate();
     // no explicit deactivate — destructor must call it
   }
@@ -113,7 +116,7 @@ TEST(LifecycleTest, SubscribeUnregisteredTypeGivesClearError) {
 
   pso::Service svc(rt);
   auto topic_cfg = pso::TopicConfig::load_from_string("nope = reliable\n");
-  svc.pre_activate({}, std::move(topic_cfg));
+  svc.pre_activate(pso::ServiceConfig{}, std::move(topic_cfg));
 
   try {
     svc.subscribe<UnregisteredType>("nope", [](const UnregisteredType&) {});
@@ -127,5 +130,46 @@ TEST(LifecycleTest, SubscribeUnregisteredTypeGivesClearError) {
 
 TEST(LifecycleTest, NullRuntimeIsRejected) {
   EXPECT_THROW(pso::Service svc(nullptr), std::runtime_error);
+}
+
+TEST(LifecycleTest, PreActivateFromBootstrapConfigLoadsTopicPolicy) {
+  const std::string token = std::to_string(::testing::UnitTest::GetInstance()->random_seed());
+  const std::string topic_path = std::string("/tmp/pso_topic_") + token + ".ini";
+  const std::string cfg_path   = std::string("/tmp/pso_bootstrap_") + token + ".ini";
+
+  {
+    std::ofstream out(topic_path.c_str());
+    ASSERT_TRUE(static_cast<bool>(out));
+    out << "topicA = reliable\n";
+  }
+  {
+    std::ofstream out(cfg_path.c_str());
+    ASSERT_TRUE(static_cast<bool>(out));
+    out << "domain_id = 77\n";
+    out << "config_file = rtps.ini\n";
+    out << "topic_config_file = " << topic_path << "\n";
+    out << "runtime_arg = -DCPSDebugLevel\n";
+    out << "runtime_arg = 6\n";
+  }
+
+  auto rt = std::make_shared<MockRuntime>();
+  EXPECT_CALL(*rt, init(_))
+      .WillOnce([](const pso::ServiceConfig& cfg) {
+        EXPECT_EQ(cfg.domain_id, 77);
+        EXPECT_EQ(cfg.config_file, "rtps.ini");
+        ASSERT_EQ(cfg.runtime_args.size(), 2u);
+        EXPECT_EQ(cfg.runtime_args[0], "-DCPSDebugLevel");
+        EXPECT_EQ(cfg.runtime_args[1], "6");
+      });
+  EXPECT_CALL(*rt, shutdown()).Times(1);
+
+  pso::Service svc(rt);
+  svc.pre_activate_from_file(cfg_path);
+  EXPECT_EQ(svc.state(), pso::LifecycleState::PreActivated);
+
+  svc.deactivate();
+
+  (void)std::remove(topic_path.c_str());
+  (void)std::remove(cfg_path.c_str());
 }
 

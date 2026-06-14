@@ -11,6 +11,7 @@ include(CMakePackageConfigHelpers)
 set(_pub_sub_open_dds_public_headers
   include/pub_sub_open_dds/fwd.h
   include/pub_sub_open_dds/service_config.h
+  include/pub_sub_open_dds/service_bootstrap_config.h
   include/pub_sub_open_dds/qos.h
   include/pub_sub_open_dds/service.h
   include/pub_sub_open_dds/topic_config.h
@@ -29,6 +30,7 @@ set(PUB_SUB_OPEN_DDS_PACKAGE_VERSION "0.1.0")
 
 add_library(pub_sub_open_dds STATIC
   src/service.cpp
+  src/service_bootstrap_config.cpp
   src/qos_profile.cpp
   src/topic_config.cpp
   src/registry.cpp
